@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { assetPath } from "@/lib/asset";
 import { navLinks, site } from "@/lib/site";
 
 export function Footer() {
@@ -9,7 +10,7 @@ export function Footer() {
         <div>
           <div className="mb-4 flex items-center gap-3">
             <Image
-              src="/images/logo-alt.png"
+              src={assetPath("/images/logo-alt.png")}
               alt={site.name}
               width={48}
               height={48}

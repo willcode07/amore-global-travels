@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { StartTravelButton } from "@/components/RequestModalProvider";
+import { assetPath } from "@/lib/asset";
 import { navLinks, site } from "@/lib/site";
 
 export function Header() {
@@ -14,7 +15,7 @@ export function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3 md:px-8">
         <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
           <Image
-            src="/images/logo.png"
+            src={assetPath("/images/logo.png")}
             alt={site.name}
             width={52}
             height={52}

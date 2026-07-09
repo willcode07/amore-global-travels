@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
+import { assetPath } from "@/lib/asset";
 
 export const metadata: Metadata = {
   title: "Vacation Packages",
@@ -55,7 +56,7 @@ export default function VacationPackagesPage() {
           </div>
           <div className="relative min-h-[280px] overflow-hidden rounded-3xl">
             <Image
-              src="/images/travel-1.jpg"
+              src={assetPath("/images/travel-1.jpg")}
               alt="Vacation destination"
               fill
               className="object-cover"

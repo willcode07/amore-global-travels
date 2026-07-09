@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { StartTravelButton } from "@/components/RequestModalProvider";
+import { assetPath } from "@/lib/asset";
 import { services, site } from "@/lib/site";
 
 const guarantees = [
@@ -22,17 +23,17 @@ const updates = [
   {
     title: "Covid in Africa",
     text: "Africa's resilience: battling COVID-19 with determination and solidarity.",
-    image: "/images/about.jpeg",
+    image: assetPath("/images/about.jpeg"),
   },
   {
     title: "Winter Travel To The Caribbean",
     text: "Winter escape: Caribbean bliss beckons — sun, sand, and serenity await.",
-    image: "/images/caribbean.jpeg",
+    image: assetPath("/images/caribbean.jpeg"),
   },
   {
     title: "First Time Jet Guide",
     text: "Your essential first-time jet travel guide: navigating skies with confidence.",
-    image: "/images/travel-1.jpg",
+    image: assetPath("/images/travel-1.jpg"),
   },
 ];
 
@@ -42,7 +43,7 @@ export default function HomePage() {
       <section className="relative isolate min-h-[88vh] overflow-hidden">
         <div
           className="absolute inset-0 scale-105 bg-cover bg-center"
-          style={{ backgroundImage: "url(/images/hero.jpeg)" }}
+          style={{ backgroundImage: `url(${assetPath("/images/hero.jpeg")})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-ink/70 via-ink/45 to-[#faf8f4]" />
         <div className="relative mx-auto flex min-h-[88vh] max-w-6xl flex-col justify-center px-5 pb-24 pt-28 md:px-8">
@@ -114,7 +115,7 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-16 md:grid-cols-2 md:px-8 md:py-20">
           <div className="relative min-h-[360px] overflow-hidden rounded-3xl">
             <Image
-              src="/images/about.jpeg"
+              src={assetPath("/images/about.jpeg")}
               alt="Travelers exploring the world"
               fill
               className="object-cover"
@@ -173,7 +174,7 @@ export default function HomePage() {
       <section className="relative isolate overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url(/images/travel-2.jpg)" }}
+          style={{ backgroundImage: `url(${assetPath("/images/travel-2.jpg")})` }}
         />
         <div className="absolute inset-0 bg-ink/70" />
         <div className="relative mx-auto max-w-4xl px-5 py-20 text-center md:px-8 md:py-28">
@@ -204,7 +205,7 @@ export default function HomePage() {
           <div className="grid items-center gap-8 rounded-3xl bg-cream p-6 md:grid-cols-[180px_1fr] md:p-10">
             <div className="relative mx-auto h-40 w-40 overflow-hidden rounded-full">
               <Image
-                src="/images/testimonial.png"
+                src={assetPath("/images/testimonial.png")}
                 alt="Traveler testimonial"
                 fill
                 className="object-cover"

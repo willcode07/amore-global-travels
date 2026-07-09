@@ -1,3 +1,5 @@
+import { assetPath } from "@/lib/asset";
+
 type PageHeroProps = {
   title: string;
   subtitle: string;
@@ -5,11 +7,13 @@ type PageHeroProps = {
 };
 
 export function PageHero({ title, subtitle, image }: PageHeroProps) {
+  const imageUrl = image.startsWith("http") ? image : assetPath(image);
+
   return (
     <section className="relative isolate min-h-[42vh] overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${image})` }}
+        style={{ backgroundImage: `url(${imageUrl})` }}
       />
       <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/55 to-ink/25" />
       <div className="relative mx-auto flex min-h-[42vh] max-w-6xl flex-col justify-end px-5 pb-12 pt-24 md:px-8">

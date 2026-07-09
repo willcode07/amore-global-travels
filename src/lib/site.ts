@@ -1,3 +1,5 @@
+import { assetPath } from "@/lib/asset";
+
 export const site = {
   name: "Amore Global",
   tagline: "Your one-stop-shop for worry-free cruise and vacation packages",
@@ -22,20 +24,20 @@ export const services = [
     title: "Cruises",
     description:
       "Sail away to adventure and relaxation with our unforgettable cruise packages.",
-    image: "/images/travel-1.jpg",
+    image: assetPath("/images/travel-1.jpg"),
   },
   {
     href: "/vacation-packages",
     title: "Vacation Packages",
     description:
       "Escape to paradise with our unbeatable vacation packages.",
-    image: "/images/caribbean.jpeg",
+    image: assetPath("/images/caribbean.jpeg"),
   },
   {
     href: "/insurance",
     title: "Insurance",
     description:
       "Travel with peace of mind knowing you're protected with our comprehensive travel insurance.",
-    image: "/images/about.jpeg",
+    image: assetPath("/images/about.jpeg"),
   },
 ];
