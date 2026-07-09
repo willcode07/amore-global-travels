@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Amore Global Travels
 
-## Getting Started
+Frontend recreation of [amoreglobaltravels.com](https://amoreglobaltravels.com), plus a traveler request funnel (modal → dashboard → agent inbox).
 
-First, run the development server:
+**Live demo:** https://willcode07.github.io/amore-global-travels/
+
+## Stack
+
+- Next.js 15 (App Router, static export)
+- TypeScript
+- Tailwind CSS v4
+- Browser `localStorage` for travel requests (GitHub Pages–friendly)
+
+## Core product flow
+
+1. **Travel request modal** — captures traveler + trip details
+2. **Traveler dashboard** (`/dashboard`) — phone + access code login, status tracker, options, messaging
+3. **Agent inbox** (`/agent`) — review requests, publish options (incl. Canva flyer links), update status, reply
+4. **Demo notifications** — email-style alerts are logged to the browser console (no server required)
+
+## Run locally
 
 ```bash
+cd amore-global-travels
+cp .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Useful URLs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` — homepage (auto-opens request modal)
+- `/dashboard` — traveler trip hub
+- `/agent` — agent inbox (default passcode: `amore-agents`)
+- `/?start=1` — force-open the request modal
 
-## Learn More
+## Deploy (GitHub Pages)
 
-To learn more about Next.js, take a look at the following resources:
+Pushes to `main` build a static site and deploy via GitHub Actions.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Manual rebuild: **Actions → Deploy to GitHub Pages → Run workflow**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Repo Settings → Pages should use **GitHub Actions** as the source.
 
-## Deploy on Vercel
+## Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Request data lives in the browser (`localStorage`), so traveler + agent flows need the same browser/device for this demo.
+- Agent passcode is intentionally simple for demos — replace with real auth before production.
+- Airport Transfer nav item removed (per client meeting); transfers can live inside itineraries.
