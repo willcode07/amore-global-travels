@@ -42,18 +42,14 @@ export function lookupRequest(phone: string, accessCode: string) {
 }
 
 export function createRequest(input: CreateRequestInput) {
-  const required = [
-    input.fullName,
-    input.email,
-    input.phone,
-    input.destination,
-    input.travelWindow,
-  ];
-  if (required.some((value) => !value || String(value).trim() === "")) {
-    throw new Error("Please complete all required fields.");
-  }
-
+  // Demo-friendly: no required-field gate; fill blanks with placeholders.
   const now = new Date().toISOString();
+  const fullName = String(input.fullName).trim() || "Demo Traveler";
+  const email = String(input.email).trim() || "demo@amoreglobaltravels.com";
+  const phone = String(input.phone).trim() || "404-500-7045";
+  const destination = String(input.destination).trim() || "Demo destination";
+  const travelWindow = String(input.travelWindow).trim() || "Flexible dates";
+
   const travelRequest: TravelRequest = {
     id: createId("req"),
     accessCode: createAccessCode(),
@@ -62,14 +58,14 @@ export function createRequest(input: CreateRequestInput) {
     createdAt: now,
     updatedAt: now,
     traveler: {
-      fullName: String(input.fullName).trim(),
-      email: String(input.email).trim(),
-      phone: String(input.phone).trim(),
+      fullName,
+      email,
+      phone,
     },
     trip: {
-      destination: String(input.destination).trim(),
+      destination,
       departureCity: String(input.departureCity ?? "").trim(),
-      travelWindow: String(input.travelWindow).trim(),
+      travelWindow,
       travelers: Number(input.travelers) || 1,
       budget: String(input.budget ?? "").trim(),
       tripStyle: Array.isArray(input.tripStyle) ? input.tripStyle.map(String) : [],

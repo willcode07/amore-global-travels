@@ -196,140 +196,134 @@ export function TravelRequestModal({ open, onClose }: TravelRequestModalProps) {
                 <span className={step === 3 ? "text-gold-deep" : ""}>3. Details</span>
               </div>
 
-              {step === 1 && (
-                <div className="grid gap-4">
-                  <Field label="Full legal name *" name="fullName" required placeholder="Exactly as it should appear on travel documents" />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Email *" name="email" type="email" required />
-                    <Field label="Phone *" name="phone" type="tel" required placeholder="Used to access your dashboard" />
-                  </div>
+              <div className={step === 1 ? "grid gap-4" : "hidden"}>
+                <Field label="Full legal name" name="fullName" placeholder="Exactly as it should appear on travel documents" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Email" name="email" type="email" />
+                  <Field label="Phone" name="phone" type="tel" placeholder="Used to access your dashboard" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-cream"
+                >
+                  Continue
+                </button>
+              </div>
+
+              <div className={step === 2 ? "grid gap-4" : "hidden"}>
+                <Field label="Where do you want to go?" name="destination" placeholder="Greece, Disney, Jamaica..." />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Departure city" name="departureCity" placeholder="Atlanta, Miami..." />
+                  <Field label="When do you want to travel?" name="travelWindow" placeholder="Oct 2026 / flexible dates" />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Number of travelers" name="travelers" type="number" min="1" defaultValue="2" />
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">Budget range</span>
+                    <select
+                      name="budget"
+                      className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+                      defaultValue={budgetOptions[1]}
+                    >
+                      {budgetOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(1)}
+                    className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
                     className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-cream"
                   >
                     Continue
                   </button>
                 </div>
-              )}
+              </div>
 
-              {step === 2 && (
-                <div className="grid gap-4">
-                  <Field label="Where do you want to go? *" name="destination" required placeholder="Greece, Disney, Jamaica..." />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Departure city" name="departureCity" placeholder="Atlanta, Miami..." />
-                    <Field label="When do you want to travel? *" name="travelWindow" required placeholder="Oct 2026 / flexible dates" />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Number of travelers" name="travelers" type="number" min="1" defaultValue="2" />
-                    <label className="block text-sm">
-                      <span className="mb-1.5 block font-medium text-ink">Budget range</span>
-                      <select
-                        name="budget"
-                        className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
-                        defaultValue={budgetOptions[1]}
-                      >
-                        {budgetOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStep(3)}
-                      className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-cream"
-                    >
-                      Continue
-                    </button>
+              <div className={step === 3 ? "grid gap-4" : "hidden"}>
+                <div>
+                  <p className="mb-2 text-sm font-medium text-ink">Trip style preferences</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tripStyleOptions.map((style) => {
+                      const active = tripStyle.includes(style);
+                      return (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => toggleStyle(style)}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                            active
+                              ? "bg-gold text-ink"
+                              : "border border-line bg-white text-muted"
+                          }`}
+                        >
+                          {style}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
 
-              {step === 3 && (
-                <div className="grid gap-4">
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-ink">Trip style preferences</p>
-                    <div className="flex flex-wrap gap-2">
-                      {tripStyleOptions.map((style) => {
-                        const active = tripStyle.includes(style);
-                        return (
-                          <button
-                            key={style}
-                            type="button"
-                            onClick={() => toggleStyle(style)}
-                            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                              active
-                                ? "bg-gold text-ink"
-                                : "border border-line bg-white text-muted"
-                            }`}
-                          >
-                            {style}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-ink">
+                    Preferred agent (optional)
+                  </span>
+                  <select
+                    name="preferredAgent"
+                    className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+                    defaultValue={agents[0].name}
+                  >
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.name}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                  <label className="block text-sm">
-                    <span className="mb-1.5 block font-medium text-ink">
-                      Preferred agent (optional)
-                    </span>
-                    <select
-                      name="preferredAgent"
-                      className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
-                      defaultValue={agents[0].name}
-                    >
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.name}>
-                          {agent.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-ink">
+                    Preferences & notes
+                  </span>
+                  <textarea
+                    name="preferences"
+                    rows={4}
+                    placeholder="Hotel vs cruise, must-have excursions, accessibility needs, celebration details..."
+                    className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+                  />
+                </label>
 
-                  <label className="block text-sm">
-                    <span className="mb-1.5 block font-medium text-ink">
-                      Preferences & notes
-                    </span>
-                    <textarea
-                      name="preferences"
-                      rows={4}
-                      placeholder="Hotel vs cruise, must-have excursions, accessibility needs, celebration details..."
-                      className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
-                    />
-                  </label>
+                {error && <p className="text-sm text-red-700">{error}</p>}
 
-                  {error && <p className="text-sm text-red-700">{error}</p>}
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink disabled:opacity-60"
-                    >
-                      {submitting ? "Submitting..." : "Submit travel request"}
-                    </button>
-                  </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink disabled:opacity-60"
+                  >
+                    {submitting ? "Submitting..." : "Submit travel request"}
+                  </button>
                 </div>
-              )}
+              </div>
             </form>
           )}
         </div>
@@ -342,7 +336,6 @@ function Field({
   label,
   name,
   type = "text",
-  required,
   placeholder,
   min,
   defaultValue,
@@ -350,7 +343,6 @@ function Field({
   label: string;
   name: string;
   type?: string;
-  required?: boolean;
   placeholder?: string;
   min?: string;
   defaultValue?: string;
@@ -361,7 +353,6 @@ function Field({
       <input
         name={name}
         type={type}
-        required={required}
         placeholder={placeholder}
         min={min}
         defaultValue={defaultValue}
