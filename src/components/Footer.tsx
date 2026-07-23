@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { StartTravelButton } from "@/components/RequestModalProvider";
 import { assetPath } from "@/lib/asset";
 import { navLinks, site } from "@/lib/site";
 
@@ -28,12 +31,23 @@ export function Footer() {
           <h3 className="mb-4 font-display text-lg">Explore</h3>
           <ul className="space-y-2 text-sm text-cream/80">
             {navLinks.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href} className="transition hover:text-gold">
-                  {link.label}
-                </Link>
+              <li key={link.label}>
+                {link.opensForm ? (
+                  <StartTravelButton className="transition hover:text-gold">
+                    {link.label}
+                  </StartTravelButton>
+                ) : (
+                  <Link href={link.href} className="transition hover:text-gold">
+                    {link.label}
+                  </Link>
+                )}
               </li>
             ))}
+            <li>
+              <Link href="/dashboard" className="transition hover:text-gold">
+                My Trip
+              </Link>
+            </li>
             <li>
               <Link href="/agent" className="transition hover:text-gold">
                 Agent inbox

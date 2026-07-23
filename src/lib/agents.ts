@@ -1,10 +1,27 @@
 import type { RequestStatus } from "@/lib/types";
 
+/** Blank first, then named agents per client meeting notes. */
 export const agents = [
-  { id: "open", name: "No preference / first available" },
-  { id: "shonya", name: "Shonya Morrison" },
-  { id: "stephanie", name: "Stephanie" },
+  { id: "blank", name: "" },
+  { id: "valerie", name: "Valerie Takpor" },
+  { id: "jaleeza", name: "Jaleeza Smith-Breedlove" },
   { id: "alfreda", name: "Alfreda Gibson" },
+  { id: "stephanie", name: "Stephanie Burney" },
+  { id: "shonya", name: "Shonya Morrison" },
+] as const;
+
+export const contactMethodOptions = [
+  "Email",
+  "Phone Call",
+  "Text",
+] as const;
+
+export const transportationOptions = [
+  "Cruise",
+  "Drive Private Vehicle",
+  "Flight",
+  "Rental Car",
+  "Train",
 ] as const;
 
 export const tripStyleOptions = [

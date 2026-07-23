@@ -70,7 +70,7 @@ export function createRequest(input: CreateRequestInput) {
       budget: String(input.budget ?? "").trim(),
       tripStyle: Array.isArray(input.tripStyle) ? input.tripStyle.map(String) : [],
       preferences: String(input.preferences ?? "").trim(),
-      preferredAgent: String(input.preferredAgent ?? "No preference / first available"),
+      preferredAgent: String(input.preferredAgent ?? "").trim(),
     },
     options: [],
     messages: [

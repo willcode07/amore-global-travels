@@ -4,18 +4,26 @@ export const site = {
   name: "Amore Global",
   tagline: "Your one-stop-shop for worry-free cruise and vacation packages",
   email: "info@amoreglobaltravels.com",
-  phone: "678-820-9739",
-  phoneHref: "tel:6788209739",
+  phone: "404-500-7045",
+  phoneHref: "tel:4045007045",
   address: "Fayetteville, GA 30214",
+  stripePaymentLink: process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK ?? "",
 };
 
-export const navLinks = [
-  { href: "/cruises", label: "Cruises" },
-  { href: "/insurance", label: "Insurance" },
-  { href: "/vacation-packages", label: "Vacation Packages" },
-  { href: "/#about", label: "About Us" },
-  { href: "/dashboard", label: "My Trip" },
+export type NavLink = {
+  href: string;
+  label: string;
+  /** Opens the travel request / fillable form modal instead of navigating. */
+  opensForm?: boolean;
+};
+
+export const navLinks: NavLink[] = [
+  { href: "/services", label: "Services" },
+  { href: "/about", label: "About Us" },
+  { href: "/updates", label: "Updates & Advisories" },
   { href: "/contact-us", label: "Contact Us" },
+  { href: "/fillable-form", label: "Fillable Form", opensForm: true },
+  { href: "/connect-stripe", label: "Connect Stripe Account" },
 ];
 
 export const services = [
@@ -39,5 +47,23 @@ export const services = [
     description:
       "Travel with peace of mind knowing you're protected with our comprehensive travel insurance.",
     image: assetPath("/images/about.jpeg"),
+  },
+];
+
+export const advisories = [
+  {
+    title: "Covid in Africa",
+    text: "Africa's resilience: battling COVID-19 with determination and solidarity.",
+    image: assetPath("/images/about.jpeg"),
+  },
+  {
+    title: "Winter Travel To The Caribbean",
+    text: "Winter escape: Caribbean bliss beckons — sun, sand, and serenity await.",
+    image: assetPath("/images/caribbean.jpeg"),
+  },
+  {
+    title: "First Time Jet Guide",
+    text: "Your essential first-time jet travel guide: navigating skies with confidence.",
+    image: assetPath("/images/travel-1.jpg"),
   },
 ];

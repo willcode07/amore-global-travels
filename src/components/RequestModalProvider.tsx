@@ -44,7 +44,7 @@ export function useRequestModal() {
 
 export function StartTravelButton({
   className,
-  children = "Start your travel",
+  children = "Fillable Form",
 }: {
   className?: string;
   children?: ReactNode;
@@ -60,7 +60,7 @@ export function StartTravelButton({
 /** Lightweight open control for pages that only need a button without auto-popup. */
 export function ManualRequestModalTrigger({
   className,
-  children = "Start your travel",
+  children = "Fillable Form",
 }: {
   className?: string;
   children?: ReactNode;

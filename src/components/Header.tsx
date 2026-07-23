@@ -12,8 +12,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-line/80 bg-[#faf8f4]/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3 md:px-8">
-        <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3 md:px-8">
+        <Link href="/" className="flex shrink-0 items-center gap-3" onClick={() => setOpen(false)}>
           <Image
             src={assetPath("/images/logo.png")}
             alt={site.name}
@@ -27,23 +27,26 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-5 xl:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-ink/80 transition hover:text-gold-deep"
-            >
-              {link.label}
-            </Link>
-          ))}
+        <nav className="hidden items-center gap-3 2xl:gap-4 xl:flex">
+          {navLinks.map((link) =>
+            link.opensForm ? (
+              <StartTravelButton
+                key={link.label}
+                className="text-sm font-medium text-ink/80 transition hover:text-gold-deep"
+              >
+                {link.label}
+              </StartTravelButton>
+            ) : (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="whitespace-nowrap text-sm font-medium text-ink/80 transition hover:text-gold-deep"
+              >
+                {link.label}
+              </Link>
+            ),
+          )}
         </nav>
-
-        <div className="hidden items-center gap-3 md:flex">
-          <StartTravelButton className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:bg-[#e08c00]">
-            Start your travel
-          </StartTravelButton>
-        </div>
 
         <button
           type="button"
@@ -63,21 +66,25 @@ export function Header() {
       {open && (
         <div className="border-t border-line bg-cream px-5 py-4 xl:hidden">
           <nav className="flex flex-col gap-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="py-1 text-base font-medium text-ink"
-                onClick={() => setOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <StartTravelButton
-              className="mt-2 rounded-full bg-gold px-4 py-3 text-left text-sm font-semibold text-ink"
-            >
-              Start your travel
-            </StartTravelButton>
+            {navLinks.map((link) =>
+              link.opensForm ? (
+                <StartTravelButton
+                  key={link.label}
+                  className="py-1 text-left text-base font-medium text-ink"
+                >
+                  {link.label}
+                </StartTravelButton>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="py-1 text-base font-medium text-ink"
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ),
+            )}
           </nav>
         </div>
       )}

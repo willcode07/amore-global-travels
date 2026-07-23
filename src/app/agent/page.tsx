@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ClientIntakeForms } from "@/components/ClientIntakeForms";
 import { MessageThread } from "@/components/MessageThread";
 import { StatusTracker } from "@/components/StatusTracker";
 import { statusLabels, statusOrder } from "@/lib/agents";
 import { listRequests, updateRequest } from "@/lib/requests";
+import { site } from "@/lib/site";
 import { RequestStatus, TravelRequest } from "@/lib/types";
 
 const AGENT_KEY = "amore_agent_unlocked";
@@ -16,6 +18,7 @@ export default function AgentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showClientForms, setShowClientForms] = useState(false);
 
   const selected = useMemo(
     () => requests.find((request) => request.id === selectedId) ?? null,
@@ -31,7 +34,6 @@ export default function AgentPage() {
   useEffect(() => {
     if (!unlocked) return;
     void loadRequests();
-    // Load inbox once unlocked.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked]);
 
@@ -139,19 +141,56 @@ export default function AgentPage() {
           </p>
           <h1 className="mt-2 font-display text-4xl text-ink">Travel request inbox</h1>
           <p className="mt-2 max-w-2xl text-muted">
-            Review traveler requests, upload option write-ups (or Canva flyer links),
-            update status, and message travelers. Email notifications keep everyone
-            looping back to the site.
+            Review traveler requests, publish options, update status, and message
+            travelers. Client forms route PDFs to {site.email}.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => loadRequests()}
-          className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowClientForms((open) => !open)}
+            className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-ink"
+          >
+            {showClientForms ? "Hide client forms" : "Open client forms"}
+          </button>
+          <button
+            type="button"
+            onClick={() => loadRequests()}
+            className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {showClientForms && (
+        <section className="mb-10 rounded-3xl bg-cream p-4 md:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-2xl text-ink">
+                Contact Us &amp; Request a Quote
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Expanded fillable forms for post-call intake. PDFs go to{" "}
+                {site.email}; quote submits also land in this inbox.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowClientForms(false)}
+              className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold"
+            >
+              Close
+            </button>
+          </div>
+          <ClientIntakeForms
+            createInboxRequest
+            onQuoteCreated={() => {
+              void loadRequests();
+            }}
+          />
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="rounded-3xl border border-line bg-surface p-4">
@@ -185,7 +224,7 @@ export default function AgentPage() {
 
         {!selected ? (
           <div className="rounded-3xl border border-line bg-surface p-8 text-muted">
-            Select a request to manage it.
+            Select a request to manage it, or open client forms to create one.
           </div>
         ) : (
           <div className="space-y-6">
@@ -200,7 +239,7 @@ export default function AgentPage() {
                     {selected.traveler.phone}
                   </p>
                   <p className="mt-1 text-sm text-muted">
-                    Preferred agent: {selected.trip.preferredAgent}
+                    Preferred agent: {selected.trip.preferredAgent || "—"}
                   </p>
                 </div>
                 <div className="rounded-full bg-cream px-4 py-2 text-sm font-semibold text-gold-deep">
@@ -251,7 +290,7 @@ export default function AgentPage() {
                 </div>
               </dl>
               {selected.trip.preferences && (
-                <p className="mt-4 rounded-2xl bg-cream px-4 py-3 text-sm">
+                <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-cream px-4 py-3 text-sm">
                   {selected.trip.preferences}
                 </p>
               )}

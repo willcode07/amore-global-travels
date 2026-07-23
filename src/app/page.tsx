@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { StartTravelButton } from "@/components/RequestModalProvider";
 import { assetPath } from "@/lib/asset";
-import { services, site } from "@/lib/site";
+import { advisories, services, site } from "@/lib/site";
 
 const guarantees = [
   {
@@ -16,24 +16,6 @@ const guarantees = [
   {
     title: "Experienced agents",
     text: "Seasoned experts at your service for every trip.",
-  },
-];
-
-const updates = [
-  {
-    title: "Covid in Africa",
-    text: "Africa's resilience: battling COVID-19 with determination and solidarity.",
-    image: assetPath("/images/about.jpeg"),
-  },
-  {
-    title: "Winter Travel To The Caribbean",
-    text: "Winter escape: Caribbean bliss beckons — sun, sand, and serenity await.",
-    image: assetPath("/images/caribbean.jpeg"),
-  },
-  {
-    title: "First Time Jet Guide",
-    text: "Your essential first-time jet travel guide: navigating skies with confidence.",
-    image: assetPath("/images/travel-1.jpg"),
   },
 ];
 
@@ -59,7 +41,7 @@ export default function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink transition hover:bg-[#e08c00]">
-              Start your travel
+              Fillable Form
             </StartTravelButton>
             <Link
               href="/dashboard"
@@ -74,18 +56,24 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
         <div className="mb-10 max-w-2xl">
           <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-            Trip protection
+            Services
           </p>
           <h2 className="font-display text-3xl text-ink md:text-4xl">
             Great opportunity for adventure & travels
           </h2>
           <p className="mt-3 text-muted">
             We&apos;re here for you from start to finish — cruises, vacations,
-            transfers, and insurance under one roof.
+            and insurance under one roof.
           </p>
+          <Link
+            href="/services"
+            className="mt-2 inline-block text-sm font-semibold text-gold-deep underline underline-offset-2"
+          >
+            View all services
+          </Link>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => (
             <Link
               key={service.href}
@@ -123,7 +111,7 @@ export default function HomePage() {
           </div>
           <div>
             <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-              About us
+              About Us
             </p>
             <h2 className="font-display text-3xl text-ink md:text-4xl">
               Let our travel agency be your guide
@@ -147,6 +135,12 @@ export default function HomePage() {
                 Cruises, vacations, transfers & insurance
               </li>
             </ul>
+            <Link
+              href="/about"
+              className="mt-6 inline-block text-sm font-semibold text-gold-deep underline underline-offset-2"
+            >
+              Read more about us
+            </Link>
           </div>
         </div>
       </section>
@@ -186,7 +180,7 @@ export default function HomePage() {
             getaways — start planning your next escape with Amore Global.
           </p>
           <StartTravelButton className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink transition hover:bg-[#e08c00]">
-            Start planning
+            Fillable Form
           </StartTravelButton>
         </div>
       </section>
@@ -225,16 +219,24 @@ export default function HomePage() {
       </section>
 
       <section id="news" className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
-        <div className="mb-10">
-          <h2 className="font-display text-3xl text-ink md:text-4xl">
-            Updates & advisories
-          </h2>
-          <p className="mt-3 text-muted">
-            Amazing news & notes for every update on the road ahead.
-          </p>
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="font-display text-3xl text-ink md:text-4xl">
+              Updates & Advisories
+            </h2>
+            <p className="mt-3 text-muted">
+              Amazing news & notes for every update on the road ahead.
+            </p>
+          </div>
+          <Link
+            href="/updates"
+            className="text-sm font-semibold text-gold-deep underline underline-offset-2"
+          >
+            View all updates
+          </Link>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          {updates.map((item) => (
+          {advisories.map((item) => (
             <article
               key={item.title}
               className="overflow-hidden rounded-2xl border border-line bg-surface"

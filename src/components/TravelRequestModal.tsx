@@ -283,11 +283,11 @@ export function TravelRequestModal({ open, onClose }: TravelRequestModalProps) {
                   <select
                     name="preferredAgent"
                     className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
-                    defaultValue={agents[0].name}
+                    defaultValue=""
                   >
                     {agents.map((agent) => (
                       <option key={agent.id} value={agent.name}>
-                        {agent.name}
+                        {agent.name || "—"}
                       </option>
                     ))}
                   </select>
