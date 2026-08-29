@@ -215,7 +215,7 @@ export function TravelRequestModal({
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-cream"
+                  className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
                 >
                   Continue
                 </button>
@@ -298,7 +298,7 @@ export function TravelRequestModal({
                   <button
                     type="button"
                     onClick={() => setStep(3)}
-                    className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-cream"
+                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
                   >
                     Continue
                   </button>
