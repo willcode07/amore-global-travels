@@ -16,7 +16,7 @@ import {
 } from "@/lib/agents";
 import { confirmedTripsToCsv, downloadCsv, requestsToCsv } from "@/lib/csv";
 import { isApiBackend } from "@/lib/data/mode";
-import { resetApiAuthCache } from "@/lib/data/api";
+import { resetApiAuthCache } from "@/lib/data/session-cache";
 import { readNotifications } from "@/lib/notifications";
 import { listRequests, updateRequest } from "@/lib/requests";
 import { emailsMatch, phonesMatch } from "@/lib/session";
