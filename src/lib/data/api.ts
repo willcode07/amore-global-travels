@@ -3,6 +3,11 @@ import {
   CreateRequestInput,
   UpdateRequestBody,
 } from "@/lib/request-ops";
+import {
+  getAgentSessionPromise,
+  resetApiAuthCache,
+  setAgentSessionPromise,
+} from "@/lib/data/session-cache";
 import { TravelRepository } from "@/lib/data/types";
 import { TravelRequest } from "@/lib/types";
 
@@ -35,11 +40,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-let agentSessionPromise: Promise<void> | null = null;
-
 async function ensureAgentSession() {
-  if (agentSessionPromise) return agentSessionPromise;
-  agentSessionPromise = (async () => {
+  const existing = getAgentSessionPromise();
+  if (existing) return existing;
+  const next = (async () => {
     const me = await fetch(apiPath("/api/auth/me"), { credentials: "include" });
     if (me.ok) {
       const data = (await me.json()) as { role?: string };
@@ -51,15 +55,14 @@ async function ensureAgentSession() {
       body: JSON.stringify({ passcode }),
     });
   })().catch((err) => {
-    agentSessionPromise = null;
+    setAgentSessionPromise(null);
     throw err;
   });
-  return agentSessionPromise;
+  setAgentSessionPromise(next);
+  return next;
 }
 
-export function resetApiAuthCache() {
-  agentSessionPromise = null;
-}
+export { resetApiAuthCache };
 
 export const apiRepository: TravelRepository = {
   async listAll() {
