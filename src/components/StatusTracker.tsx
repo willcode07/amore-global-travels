@@ -1,33 +1,32 @@
-import { statusLabels, statusOrder } from "@/lib/agents";
+import { journeyStageIndex, journeySteps } from "@/lib/journey";
 import { RequestStatus } from "@/lib/types";
 
 export function StatusTracker({ status }: { status: RequestStatus }) {
-  const currentIndex = statusOrder.indexOf(status);
+  const currentIndex = journeyStageIndex(status);
+  const confirmed = status === "booking_confirmed";
 
   return (
-    <ol className="grid gap-3 sm:grid-cols-5">
-      {statusOrder.map((step, index) => {
-        const complete = index <= currentIndex;
-        const current = index === currentIndex;
+    <ol className="grid gap-3 sm:grid-cols-3">
+      {journeySteps.map((step, index) => {
+        const complete = index < currentIndex || confirmed;
+        const current = index === currentIndex && !confirmed;
         return (
           <li
-            key={step}
+            key={step.title}
             className={`rounded-2xl border px-3 py-3 text-center text-xs md:text-sm ${
-              complete
+              complete || current
                 ? "border-gold bg-cream text-ink"
                 : "border-line bg-surface text-muted"
             }`}
           >
             <div
               className={`mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-                complete ? "bg-gold text-ink" : "bg-line text-muted"
+                complete || current ? "bg-gold text-brand" : "bg-line text-muted"
               }`}
             >
-              {complete && !current ? "✓" : index + 1}
+              {complete ? "✓" : index + 1}
             </div>
-            <div className={current ? "font-semibold" : ""}>
-              {statusLabels[step]}
-            </div>
+            <div className={current ? "font-semibold" : ""}>{step.title}</div>
           </li>
         );
       })}

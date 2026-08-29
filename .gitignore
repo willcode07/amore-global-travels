@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# leftover if a static export is interrupted
+src/app/_api.static-export
+
+
 # vercel
 .vercel
 

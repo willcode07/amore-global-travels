@@ -1,214 +1,72 @@
-import { furthestStatus } from "@/lib/agents";
+import { isApiBackend } from "@/lib/data";
 import { notifyEvent } from "@/lib/email";
+import { getRepository } from "@/lib/data";
 import {
-  createAccessCode,
-  createId,
-  findRequestByPhoneAndCode,
-  getRequestById,
-  readRequests,
-  upsertRequest,
-} from "@/lib/store";
-import {
-  MessageSender,
-  RequestStatus,
-  TravelOption,
-  TravelRequest,
-} from "@/lib/types";
+  AddMessageInput,
+  CreateRequestInput,
+  UpdateRequestBody,
+} from "@/lib/request-ops";
+import { writeSession } from "@/lib/session";
 
-export type CreateRequestInput = {
-  fullName: string;
-  email: string;
-  phone: string;
-  destination: string;
-  departureCity?: string;
-  travelWindow: string;
-  travelers?: string | number;
-  budget?: string;
-  preferredAgent?: string;
-  preferences?: string;
-  tripStyle?: string[];
-};
+export type { CreateRequestInput, UpdateRequestBody } from "@/lib/request-ops";
 
-export function listRequests() {
-  return readRequests();
+export async function listRequests() {
+  return getRepository().listAll();
 }
 
-export function lookupRequest(phone: string, accessCode: string) {
-  const travelRequest = findRequestByPhoneAndCode(phone, accessCode);
-  if (!travelRequest) {
-    throw new Error("No trip found for that phone number and access code.");
+export async function lookupTraveler(email: string, phone: string) {
+  const matches = await getRepository().findByTraveler(email, phone);
+  if (matches.length === 0) {
+    throw new Error("No trips found for that email and phone number.");
+  }
+  return matches;
+}
+
+export async function createRequest(input: CreateRequestInput) {
+  const travelRequest = await getRepository().create(input);
+  if (input.persistSession !== false) {
+    writeSession({
+      fullName: travelRequest.traveler.fullName,
+      email: travelRequest.traveler.email,
+      phone: travelRequest.traveler.phone,
+    });
+  }
+  if (!isApiBackend()) {
+    notifyEvent("request_submitted", travelRequest);
   }
   return travelRequest;
 }
 
-export function createRequest(input: CreateRequestInput) {
-  // Demo-friendly: no required-field gate; fill blanks with placeholders.
-  const now = new Date().toISOString();
-  const fullName = String(input.fullName).trim() || "Demo Traveler";
-  const email = String(input.email).trim() || "demo@amoreglobaltravels.com";
-  const phone = String(input.phone).trim() || "404-500-7045";
-  const destination = String(input.destination).trim() || "Demo destination";
-  const travelWindow = String(input.travelWindow).trim() || "Flexible dates";
-
-  const travelRequest: TravelRequest = {
-    id: createId("req"),
-    accessCode: createAccessCode(),
-    status: "submitted",
-    progressStatus: "submitted",
-    createdAt: now,
-    updatedAt: now,
-    traveler: {
-      fullName,
-      email,
-      phone,
-    },
-    trip: {
-      destination,
-      departureCity: String(input.departureCity ?? "").trim(),
-      travelWindow,
-      travelers: Number(input.travelers) || 1,
-      budget: String(input.budget ?? "").trim(),
-      tripStyle: Array.isArray(input.tripStyle) ? input.tripStyle.map(String) : [],
-      preferences: String(input.preferences ?? "").trim(),
-      preferredAgent: String(input.preferredAgent ?? "").trim(),
-    },
-    options: [],
-    messages: [
-      {
-        id: createId("msg"),
-        sender: "agent",
-        senderName: "Amore Global",
-        body: "Thanks for submitting your travel request. An agent will review your details and follow up here with options.",
-        createdAt: now,
-      },
-    ],
-  };
-
-  upsertRequest(travelRequest);
-  notifyEvent("request_submitted", travelRequest);
-  return travelRequest;
-}
-
-export function updateRequest(
-  id: string,
-  body: {
-    status?: RequestStatus;
-    option?: {
-      title?: string;
-      summary?: string;
-      estimatedPrice?: string;
-      highlights?: string | string[];
-      flyerUrl?: string;
-    };
-    selectedOptionId?: string;
-    silent?: boolean;
-  },
-) {
-  const existing = getRequestById(id);
-  if (!existing) {
-    throw new Error("Request not found.");
-  }
-
-  const updated = { ...existing, updatedAt: new Date().toISOString() };
+export async function updateRequest(id: string, body: UpdateRequestBody) {
+  const updated = await getRepository().update(id, body);
   const silent = Boolean(body.silent);
 
-  if (body.status) {
-    const nextStatus = body.status;
-    updated.status = nextStatus;
-    updated.progressStatus = furthestStatus(
-      nextStatus,
-      existing.progressStatus ?? existing.status,
-    );
-    if (!silent) {
+  if (!silent && !isApiBackend()) {
+    if (body.status) {
       const event =
         updated.status === "options_ready" ? "options_ready" : "status_updated";
       notifyEvent(event, updated);
     }
-  }
-
-  if (body.option) {
-    const option: TravelOption = {
-      id: createId("opt"),
-      title: String(body.option.title ?? "Travel option").trim(),
-      summary: String(body.option.summary ?? "").trim(),
-      estimatedPrice: String(body.option.estimatedPrice ?? "").trim(),
-      highlights: Array.isArray(body.option.highlights)
-        ? body.option.highlights.map(String)
-        : String(body.option.highlights ?? "")
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean),
-      flyerUrl: body.option.flyerUrl
-        ? String(body.option.flyerUrl).trim()
-        : undefined,
-      createdAt: new Date().toISOString(),
-    };
-    updated.options = [...updated.options, option];
-    if (updated.status === "submitted" || updated.status === "under_review") {
-      updated.status = "options_ready";
-    }
-    updated.progressStatus = furthestStatus(
-      updated.status,
-      updated.progressStatus ?? existing.progressStatus ?? existing.status,
-    );
-    if (!silent) {
+    if (body.option || body.quote) {
       notifyEvent("options_ready", updated);
     }
-  }
-
-  if (body.selectedOptionId) {
-    updated.selectedOptionId = String(body.selectedOptionId);
-    updated.status = "option_selected";
-    updated.progressStatus = furthestStatus(
-      "option_selected",
-      updated.progressStatus ?? existing.progressStatus ?? existing.status,
-    );
-    if (!silent) {
+    if (body.selectedOptionId || body.selectedQuoteId) {
       notifyEvent("option_selected", updated);
       notifyEvent("status_updated", updated);
     }
   }
 
-  return upsertRequest(updated);
+  return updated;
 }
 
-export function addMessage(
-  id: string,
-  input: { sender: MessageSender; senderName?: string; body: string },
-) {
-  const existing = getRequestById(id);
-  if (!existing) {
-    throw new Error("Request not found.");
+export async function addMessage(id: string, input: AddMessageInput) {
+  const updated = await getRepository().addMessage(id, input);
+  if (!isApiBackend()) {
+    notifyEvent(
+      input.sender === "traveler" ? "message_from_traveler" : "message_from_agent",
+      updated,
+      { messagePreview: String(input.body ?? "").trim() },
+    );
   }
-
-  const messageBody = String(input.body ?? "").trim();
-  const sender = input.sender;
-  if (!messageBody || (sender !== "traveler" && sender !== "agent")) {
-    throw new Error("Invalid message.");
-  }
-
-  const message = {
-    id: createId("msg"),
-    sender,
-    senderName:
-      String(input.senderName ?? "").trim() ||
-      (sender === "traveler" ? existing.traveler.fullName : "Amore Global Agent"),
-    body: messageBody,
-    createdAt: new Date().toISOString(),
-  };
-
-  const updated = {
-    ...existing,
-    updatedAt: new Date().toISOString(),
-    messages: [...existing.messages, message],
-  };
-
-  upsertRequest(updated);
-  notifyEvent(
-    sender === "traveler" ? "message_from_traveler" : "message_from_agent",
-    updated,
-    { messagePreview: messageBody },
-  );
-
   return updated;
 }

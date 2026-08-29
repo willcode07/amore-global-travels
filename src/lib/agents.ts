@@ -24,6 +24,20 @@ export const transportationOptions = [
   "Train",
 ] as const;
 
+export const tripTypeOptions = [
+  { id: "vacation_package", label: "Vacation package" },
+  { id: "all_inclusive", label: "All-inclusive" },
+  { id: "cruise", label: "Cruise" },
+  { id: "not_sure", label: "Not sure yet" },
+] as const;
+
+export const tripTypeLabels: Record<string, string> = {
+  vacation_package: "Vacation package",
+  all_inclusive: "All-inclusive",
+  cruise: "Cruise",
+  not_sure: "Not sure yet",
+};
+
 export const tripStyleOptions = [
   "Hotel / resort",
   "Cruise",
@@ -33,6 +47,8 @@ export const tripStyleOptions = [
   "Family-friendly",
   "Adventure / excursions",
   "Romantic getaway",
+  "Group travel",
+  "Celebration / milestone",
 ] as const;
 
 export const budgetOptions = [
@@ -57,6 +73,20 @@ export const statusOrder = [
   "options_ready",
   "option_selected",
   "booking_confirmed",
+] as const;
+
+export const paymentLabels: Record<string, string> = {
+  not_requested: "No payment yet",
+  deposit_due: "Deposit due",
+  paid: "Paid",
+  refunded: "Refunded",
+};
+
+export const paymentOrder = [
+  "not_requested",
+  "deposit_due",
+  "paid",
+  "refunded",
 ] as const;
 
 export function furthestStatus(

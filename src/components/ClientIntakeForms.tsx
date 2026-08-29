@@ -5,6 +5,7 @@ import {
   agents,
   contactMethodOptions,
   transportationOptions,
+  tripTypeOptions,
 } from "@/lib/agents";
 import {
   contactMailtoBody,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/pdf";
 import { createRequest } from "@/lib/requests";
 import { site } from "@/lib/site";
+import { TripType } from "@/lib/types";
 import { usStates } from "@/lib/us-states";
 
 type ClientIntakeFormsProps = {
@@ -53,7 +55,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-        active ? "bg-gold text-ink" : "border border-line bg-white text-muted"
+        active ? "bg-gold text-brand" : "border border-line bg-surface text-muted"
       }`}
     >
       {label}
@@ -85,7 +87,7 @@ function Field({
         placeholder={placeholder}
         defaultValue={defaultValue}
         min={min}
-        className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+        className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
       />
     </label>
   );
@@ -102,6 +104,7 @@ export function ClientIntakeForms({
   const [accessibilityNeeded, setAccessibilityNeeded] = useState("");
   const [pets, setPets] = useState(false);
   const [supportAnimal, setSupportAnimal] = useState(false);
+  const [tripType, setTripType] = useState<TripType>("not_sure");
   const [contactStatus, setContactStatus] = useState("");
   const [quoteStatus, setQuoteStatus] = useState("");
   const [contactError, setContactError] = useState("");
@@ -134,7 +137,7 @@ export function ClientIntakeForms({
     }
   }
 
-  function handleQuote(event: FormEvent<HTMLFormElement>) {
+  async function handleQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setQuoteError("");
     const form = new FormData(event.currentTarget);
@@ -184,7 +187,7 @@ export function ClientIntakeForms({
           (Number(data.adultsCount) || 0) + (Number(data.childrenCount) || 0) ||
           1;
 
-        createRequest({
+        await createRequest({
           fullName,
           email: data.email,
           phone: data.phone,
@@ -193,6 +196,8 @@ export function ClientIntakeForms({
           travelWindow,
           travelers,
           preferredAgent: data.preferredAgent,
+          tripType,
+          persistSession: !createInboxRequest,
           preferences: [
             data.preferences,
             data.preferredContactMethods.length
@@ -226,6 +231,7 @@ export function ClientIntakeForms({
       setAccessibilityNeeded("");
       setPets(false);
       setSupportAnimal(false);
+      setTripType("not_sure");
       event.currentTarget.reset();
     } catch (err) {
       setQuoteError(err instanceof Error ? err.message : "Unable to submit.");
@@ -260,14 +266,14 @@ export function ClientIntakeForms({
           <textarea
             name="contactMessage"
             rows={4}
-            className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+            className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
           />
         </label>
         {contactError && <p className="text-sm text-red-700">{contactError}</p>}
         {contactStatus && <p className="text-sm text-gold-deep">{contactStatus}</p>}
         <button
           type="submit"
-          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink"
+          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
         >
           Send Contact Us PDF
         </button>
@@ -320,7 +326,7 @@ export function ClientIntakeForms({
             <select
               name="state"
               defaultValue=""
-              className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+              className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
             >
               <option value="">Select</option>
               {usStates.map((state) => (
@@ -359,6 +365,22 @@ export function ClientIntakeForms({
 
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-ink">
+            What kind of trip?
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {tripTypeOptions.map((option) => (
+              <Chip
+                key={option.id}
+                label={option.label}
+                active={tripType === option.id}
+                onClick={() => setTripType(option.id)}
+              />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-ink">
             Mode of transportation (all that apply)
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -388,7 +410,7 @@ export function ClientIntakeForms({
             name="preferences"
             rows={3}
             placeholder="Eg. Cruise Port, Balcony, Ocean View, Airport Location, Travel Times, etc."
-            className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+            className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
           />
         </label>
 
@@ -415,7 +437,7 @@ export function ClientIntakeForms({
             <textarea
               name="accessibilityNotes"
               rows={2}
-              className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+              className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
             />
           </label>
         )}
@@ -456,7 +478,7 @@ export function ClientIntakeForms({
           <select
             name="preferredAgent"
             defaultValue=""
-            className="w-full rounded-xl border border-line bg-white px-4 py-3 outline-none ring-gold focus:ring-2"
+            className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.name}>
@@ -470,7 +492,7 @@ export function ClientIntakeForms({
         {quoteStatus && <p className="text-sm text-gold-deep">{quoteStatus}</p>}
         <button
           type="submit"
-          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink"
+          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
         >
           Submit Quote PDF
         </button>
