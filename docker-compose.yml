@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: amore-postgres
+    environment:
+      POSTGRES_USER: amore
+      POSTGRES_PASSWORD: amore
+      POSTGRES_DB: amore
+    ports:
+      - "5432:5432"
+    volumes:
+      - amore_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amore -d amore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  amore_pg:
