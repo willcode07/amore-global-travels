@@ -1,107 +1,78 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
-import { assetPath } from "@/lib/asset";
+import { StartTravelButton } from "@/components/RequestModalProvider";
+import { vacationRegions } from "@/lib/destinations";
 
 export const metadata: Metadata = {
   title: "Vacation Packages",
-  description: "Tailored vacation packages for memorable getaways around the world.",
+  description:
+    "Africa, Caribbean, and Europe vacation inspiration — then a custom quote from an Amore Global agent.",
 };
-
-const stats = [
-  { value: "752", label: "Customers" },
-  { value: "603", label: "Trips" },
-  { value: "52", label: "Trip types" },
-  { value: "108", label: "Adventure activities" },
-];
-
-const packages = [
-  {
-    name: "Regular Package",
-    price: "From $19.85",
-    features: ["Best price", "Book online", "Travel concierge", "Airport lounge voucher"],
-  },
-  {
-    name: "Standard Package",
-    price: "From $19.85",
-    features: ["Best price", "Book online", "Travel concierge", "Luxury transfer"],
-  },
-  {
-    name: "Premium Package",
-    price: "From $19.85",
-    features: ["Best price", "Book online", "Luxury transfer", "Airport lounge voucher"],
-  },
-];
 
 export default function VacationPackagesPage() {
   return (
     <>
       <PageHero
         title="Vacation Packages"
-        subtitle="Tailored vacation packages — your gateway to memorable getaways."
+        subtitle="Regions we plan often. Details and pricing live in your quote — not on a page that goes stale."
         image="/images/caribbean.jpeg"
       />
 
       <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
-        <div className="grid items-center gap-10 md:grid-cols-2">
-          <div>
-            <h2 className="font-display text-3xl text-ink md:text-4xl">
-              Travel to make memories all around the world
-            </h2>
-            <p className="mt-4 leading-relaxed text-muted">
-              Escape to paradise with unbeatable vacation packages designed for
-              comfort, adventure, and ease — from planning to return home.
-            </p>
-          </div>
-          <div className="relative min-h-[280px] overflow-hidden rounded-3xl">
-            <Image
-              src={assetPath("/images/travel-1.jpg")}
-              alt="Vacation destination"
-              fill
-              className="object-cover"
-            />
-          </div>
+        <div className="max-w-3xl">
+          <h2 className="font-display text-3xl text-ink md:text-4xl">
+            Browse by region, then talk to us
+          </h2>
+          <p className="mt-4 leading-relaxed text-muted">
+            These are starting points — Jamaica under the Caribbean, Ghana and Kenya
+            in Africa, London and Greece in Europe. When a destination catches your
+            eye, request a quote and an agent will assemble the trip.
+          </p>
         </div>
 
-        <div className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl border border-line bg-surface px-4 py-6 text-center"
+        <div className="mt-12 space-y-12">
+          {vacationRegions.map((region) => (
+            <article
+              key={region.slug}
+              className="grid items-center gap-8 overflow-hidden rounded-[1.6rem] border border-line bg-surface md:grid-cols-2"
             >
-              <div className="font-display text-3xl text-gold-deep">{stat.value}</div>
-              <div className="mt-1 text-sm text-muted">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-16">
-          <h3 className="font-display text-2xl text-ink md:text-3xl">
-            Amazing vacation pricing
-          </h3>
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
-            {packages.map((pkg) => (
-              <div
-                key={pkg.name}
-                className="flex flex-col rounded-3xl border border-line bg-cream p-6"
-              >
-                <h4 className="font-display text-xl text-ink">{pkg.name}</h4>
-                <p className="mt-2 text-sm font-semibold text-gold-deep">{pkg.price}</p>
-                <ul className="mt-5 flex-1 space-y-2 text-sm text-muted">
-                  {pkg.features.map((feature) => (
-                    <li key={feature}>• {feature}</li>
-                  ))}
-                </ul>
-                <Link
-                  href="/contact-us"
-                  className="mt-6 inline-flex justify-center rounded-full bg-ink px-5 py-3 text-sm font-semibold text-cream transition hover:bg-black"
-                >
-                  Choose package
-                </Link>
+              <div className="relative min-h-[260px]">
+                <Image
+                  src={region.image}
+                  alt={region.name}
+                  fill
+                  className="object-cover"
+                />
               </div>
-            ))}
-          </div>
+              <div className="p-6 md:p-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold-deep">
+                  {region.eyebrow}
+                </p>
+                <h3 className="mt-2 font-display text-3xl text-ink">{region.name}</h3>
+                <p className="mt-3 text-muted">{region.summary}</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {region.destinations.map((place) => (
+                    <StartTravelButton
+                      key={place}
+                      destination={place}
+                      tripType="vacation_package"
+                      className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold"
+                    >
+                      Quote {place}
+                    </StartTravelButton>
+                  ))}
+                </div>
+                <StartTravelButton
+                  destination={region.name}
+                  tripType="vacation_package"
+                  className="mt-6 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+                >
+                  Request {region.name === "Africa" ? "an" : "a"} {region.name} quote
+                </StartTravelButton>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </>

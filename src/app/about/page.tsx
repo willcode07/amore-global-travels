@@ -31,12 +31,13 @@ export default function AboutPage() {
         </div>
         <div>
           <h2 className="font-display text-3xl text-ink md:text-4xl">
-            Travel adventure with trip protection
+            Travel planned with care
           </h2>
           <p className="mt-4 text-muted leading-relaxed">
-            We are a travel adventure company helping you leave footprints in
-            every corner. Tour amazing places around the world with experienced
-            agents and packages built around comfort, safety, and value.
+            We are a Fayetteville, Georgia agency helping families and groups leave
+            footprints without leaving the details to a booking engine. Cruises,
+            vacation packages, and trip protection — with an agent who stays on the
+            trip with you.
           </p>
           <ul className="mt-6 space-y-3 text-sm text-ink">
             <li className="flex gap-2">
@@ -45,20 +46,20 @@ export default function AboutPage() {
             </li>
             <li className="flex gap-2">
               <span className="mt-1 h-2 w-2 rounded-full bg-gold" />
-              Competitive pricing with concierge support
+              Quotes you can read, print, and choose from
             </li>
             <li className="flex gap-2">
               <span className="mt-1 h-2 w-2 rounded-full bg-gold" />
-              Cruises, vacations, transfers &amp; insurance
+              Cruises, vacations, and insurance under one roof
             </li>
           </ul>
           <div className="mt-8 flex flex-wrap gap-3">
-            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink">
-              Fillable Form
+            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand">
+              Request a Quote
             </StartTravelButton>
             <Link
               href="/contact-us"
-              className="rounded-full border border-line bg-white px-6 py-3 text-sm font-semibold text-ink"
+              className="rounded-full border border-line bg-surface px-6 py-3 text-sm font-semibold text-ink"
             >
               Contact Us
             </Link>

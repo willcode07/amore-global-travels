@@ -1,15 +1,52 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #faf8f4;
-  --foreground: #1c231f;
-  --gold: #f09a0f;
+  color-scheme: light;
+  --background: #f7f3eb;
+  --foreground: #171c19;
+  --gold: #e8920c;
   --gold-deep: #7a5600;
-  --cream: #fef5e7;
-  --ink: #1c231f;
-  --muted: #5c6560;
+  --cream: #fbf3e4;
+  --ink: #171c19;
+  --muted: #5e6762;
   --surface: #ffffff;
-  --line: #e6e0d4;
+  --line: #e4ddd0;
+  --brand: #171c19;
+  --shadow-soft: 0 18px 50px rgba(23, 28, 25, 0.08);
+}
+
+html.dark {
+  color-scheme: dark;
+  --background: #121614;
+  --foreground: #f3eee4;
+  --gold: #f0a326;
+  --gold-deep: #f0c36a;
+  --cream: #1c2320;
+  --ink: #f3eee4;
+  --muted: #a6aea9;
+  --surface: #1a201d;
+  --line: #333c38;
+  --brand: #0e1210;
+  --shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.light) {
+    color-scheme: dark;
+    --background: #121614;
+    --foreground: #f3eee4;
+    --gold: #f0a326;
+    --gold-deep: #f0c36a;
+    --cream: #1c2320;
+    --ink: #f3eee4;
+    --muted: #a6aea9;
+    --surface: #1a201d;
+    --line: #333c38;
+    --brand: #0e1210;
+    --shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.4);
+  }
 }
 
 @theme inline {
@@ -22,6 +59,7 @@
   --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-line: var(--line);
+  --color-brand: var(--brand);
   --font-sans: var(--font-figtree);
   --font-display: var(--font-fraunces);
 }
@@ -52,4 +90,98 @@ a {
 
 ::selection {
   background: color-mix(in srgb, var(--gold) 35%, white);
+}
+
+input,
+textarea,
+select {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+@keyframes amore-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes amore-ken {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes amore-soft-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.amore-fade-up {
+  animation: amore-fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.amore-fade-up-delay {
+  animation: amore-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.amore-fade-up-delay-2 {
+  animation: amore-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}
+
+.amore-hero-zoom {
+  animation: amore-ken 12s ease-out both;
+}
+
+.amore-soft-in {
+  animation: amore-soft-in 0.6s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amore-fade-up,
+  .amore-fade-up-delay,
+  .amore-fade-up-delay-2,
+  .amore-hero-zoom,
+  .amore-soft-in {
+    animation: none;
+  }
+}
+
+.quote-sheet {
+  color-scheme: light;
+  background: #f7f3eb;
+  color: #171c19;
+}
+
+@media print {
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .quote-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: none !important;
+  }
 }

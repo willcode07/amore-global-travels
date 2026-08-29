@@ -1,8 +1,10 @@
 # Amore Global Travels
 
-Frontend recreation of [amoreglobaltravels.com](https://amoreglobaltravels.com), plus a traveler request funnel (modal → dashboard → agent inbox).
+Frontend recreation of [amoreglobaltravels.com](https://amoreglobaltravels.com), plus an agent-led quote funnel (request → traveler dashboard → agent inbox → written proposal).
 
 **Live demo:** https://willcode07.github.io/amore-global-travels/
+
+**Brand book:** [docs/BRAND_BOOK.md](docs/BRAND_BOOK.md) · visual review at `/brand`
 
 ## Stack
 
@@ -13,10 +15,10 @@ Frontend recreation of [amoreglobaltravels.com](https://amoreglobaltravels.com),
 
 ## Core product flow
 
-1. **Travel request modal** — captures traveler + trip details
-2. **Traveler dashboard** (`/dashboard`) — phone + access code login, status tracker, options, messaging
-3. **Agent inbox** (`/agent`) — review requests, publish options (incl. Canva flyer links), update status, reply
-4. **Demo notifications** — email-style alerts are logged to the browser console (no server required)
+1. **Request a Quote** — traveler + trip details, including cruise / all-inclusive / vacation package
+2. **Traveler dashboard** (`/dashboard`) — email + phone login, every trip in one view, written quotes, messaging
+3. **Agent inbox** (`/agent`) — one row per trip, quote composer, payment status, CSV export for ClientEase
+4. **Notifications** — demo email-style alerts stored in the browser
 
 ## Run locally
 
@@ -31,7 +33,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Useful URLs
 
-- `/` — homepage (auto-opens request modal)
+- `/` — homepage
+- `/vacation-packages` — Africa, Caribbean, Europe
+- `/cruises` — cruise planning (separate from land packages)
+- `/enhance-your-trip` — Aura Frames add-on
 - `/dashboard` — traveler trip hub
 - `/agent` — agent inbox (default passcode: `amore-agents`)
 - `/?start=1` — force-open the request modal
@@ -46,6 +51,7 @@ Repo Settings → Pages should use **GitHub Actions** as the source.
 
 ## Notes
 
-- Request data lives in the browser (`localStorage`), so traveler + agent flows need the same browser/device for this demo.
-- Agent passcode is intentionally simple for demos — replace with real auth before production.
-- Airport Transfer nav item removed (per client meeting); transfers can live inside itineraries.
+- Request data lives in the browser (`localStorage`), so traveler + agent flows need the same browser/device.
+- Agent login uses a demo passcode (`amore-agents`).
+- Airport transfers are not a standalone service; they can be quoted inside an itinerary.
+- Light and dark mode follow the visitor’s browser theme, with a header toggle.

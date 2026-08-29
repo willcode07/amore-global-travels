@@ -1,25 +1,30 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
+import { StartTravelButton } from "@/components/RequestModalProvider";
 
 export const metadata: Metadata = {
   title: "Cruises",
-  description: "Luxurious cruise experiences with shore excursions and onboard comfort.",
+  description:
+    "Group and private cruise planning with an Amore Global agent — kept separate from land vacations.",
 };
 
-const activities = [
-  { title: "Shore excursion", text: "Explore ports with curated local experiences." },
-  { title: "Private tour", text: "Personalized itineraries built around your pace." },
-  { title: "Diving", text: "Discover underwater destinations with guided support." },
-  { title: "Fishing", text: "Relaxing days on the water with memorable catches." },
-  { title: "Events", text: "Celebrate special moments at sea in style." },
-];
-
-const steps = [
-  "Select yacht",
-  "Choose skipper",
-  "Make payment",
-  "Start sail",
+const highlights = [
+  {
+    title: "Group sailings",
+    text: "Cabin blocks and hosted groups, planned so everyone knows where to be.",
+  },
+  {
+    title: "Private cruise planning",
+    text: "A sailing chosen for your dates, ports, and how you like to travel.",
+  },
+  {
+    title: "Shore days that fit",
+    text: "Excursions and independent time, not a one-size tour list.",
+  },
+  {
+    title: "Celebrations at sea",
+    text: "Birthdays, reunions, and milestone trips with the details written into the quote.",
+  },
 ];
 
 export default function CruisesPage() {
@@ -27,31 +32,28 @@ export default function CruisesPage() {
     <>
       <PageHero
         title="Cruises"
-        subtitle="Cruise in comfort — a luxurious cruise experience awaits."
+        subtitle="A cruise is its own kind of trip. We keep it separate from land packages so you can find it on purpose."
         image="/images/travel-1.jpg"
       />
 
       <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
         <div className="max-w-3xl">
           <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-            About sailing
+            At sea
           </p>
           <h2 className="font-display text-3xl text-ink md:text-4xl">
-            Make memories at sea
+            Tell us the sailing. We build the quote.
           </h2>
           <p className="mt-4 leading-relaxed text-muted">
-            Craft unforgettable memories at sea. Immerse yourself in the serenity
-            and adventure of oceanic journeys, creating moments that will last a
-            lifetime. Relax, unwind, and explore the world in style.
+            No self-serve checkout, no mystery yacht picker. Request a cruise quote
+            and an agent will come back with options, protection, and next steps in
+            your dashboard.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {activities.map((item) => (
-            <div
-              key={item.title}
-              className="rounded-2xl border border-line bg-surface p-6"
-            >
+        <div className="mt-12 grid gap-5 sm:grid-cols-2">
+          {highlights.map((item) => (
+            <div key={item.title} className="rounded-2xl border border-line bg-surface p-6">
               <h3 className="font-display text-xl text-ink">{item.title}</h3>
               <p className="mt-2 text-sm text-muted">{item.text}</p>
             </div>
@@ -59,25 +61,19 @@ export default function CruisesPage() {
         </div>
 
         <div className="mt-16 rounded-3xl bg-cream p-8 md:p-10">
-          <h3 className="font-display text-2xl text-ink">Ready to book</h3>
-          <p className="mt-2 text-muted">A very simple way to start your sail.</p>
-          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <li
-                key={step}
-                className="rounded-2xl bg-white px-5 py-4 text-sm font-semibold text-ink"
-              >
-                <span className="mr-2 text-gold-deep">{index + 1}.</span>
-                {step}
-              </li>
-            ))}
-          </ol>
-          <Link
-            href="/contact-us"
-            className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink transition hover:bg-[#e08c00]"
+          <h3 className="font-display text-2xl text-ink">Ready to look at a cruise?</h3>
+          <p className="mt-2 max-w-xl text-muted">
+            Share a region, a month, and who is sailing. Caribbean itineraries and
+            other popular routes are planned the same way: quote first, book when
+            you are sure.
+          </p>
+          <StartTravelButton
+            tripType="cruise"
+            destination="Cruise"
+            className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand"
           >
-            Book now
-          </Link>
+            Request a cruise quote
+          </StartTravelButton>
         </div>
       </section>
     </>

@@ -1,29 +1,30 @@
 import { assetPath } from "@/lib/asset";
+import { brand } from "@/lib/brand";
 
 export const site = {
-  name: "Amore Global",
+  name: brand.name,
   tagline: "Your one-stop-shop for worry-free cruise and vacation packages",
-  email: "info@amoreglobaltravels.com",
-  phone: "404-500-7045",
-  phoneHref: "tel:4045007045",
-  address: "Fayetteville, GA 30214",
-  stripePaymentLink: process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK ?? "",
+  email: brand.contact.email,
+  phone: brand.contact.phone,
+  phoneHref: brand.contact.phoneHref,
+  address: brand.contact.address,
 };
 
 export type NavLink = {
   href: string;
   label: string;
-  /** Opens the travel request / fillable form modal instead of navigating. */
+  /** Opens the travel request modal instead of navigating. */
   opensForm?: boolean;
+  emphasize?: boolean;
 };
 
 export const navLinks: NavLink[] = [
   { href: "/services", label: "Services" },
+  { href: "/vacation-packages", label: "Vacations" },
+  { href: "/cruises", label: "Cruises" },
   { href: "/about", label: "About Us" },
-  { href: "/updates", label: "Updates & Advisories" },
-  { href: "/contact-us", label: "Contact Us" },
-  { href: "/fillable-form", label: "Fillable Form", opensForm: true },
-  { href: "/connect-stripe", label: "Connect Stripe Account" },
+  { href: "/contact-us", label: "Contact" },
+  { href: "/request-a-quote", label: "Request a Quote", opensForm: true, emphasize: true },
 ];
 
 export const services = [
@@ -31,39 +32,39 @@ export const services = [
     href: "/cruises",
     title: "Cruises",
     description:
-      "Sail away to adventure and relaxation with our unforgettable cruise packages.",
+      "Group sailings and private cruise planning — an agent builds the itinerary with you.",
     image: assetPath("/images/travel-1.jpg"),
   },
   {
     href: "/vacation-packages",
     title: "Vacation Packages",
     description:
-      "Escape to paradise with our unbeatable vacation packages.",
+      "Africa, the Caribbean, and Europe — generalized inspiration, then a custom quote.",
     image: assetPath("/images/caribbean.jpeg"),
   },
   {
     href: "/insurance",
-    title: "Insurance",
+    title: "Travel Insurance",
     description:
-      "Travel with peace of mind knowing you're protected with our comprehensive travel insurance.",
+      "Trip protection we can include in your quote so the unexpected does not become unpaid.",
     image: assetPath("/images/about.jpeg"),
   },
 ];
 
 export const advisories = [
   {
-    title: "Covid in Africa",
-    text: "Africa's resilience: battling COVID-19 with determination and solidarity.",
+    title: "Planning travel to Africa",
+    text: "Entry rules and health guidance change. We confirm the current picture before you book — not after.",
     image: assetPath("/images/about.jpeg"),
   },
   {
-    title: "Winter Travel To The Caribbean",
-    text: "Winter escape: Caribbean bliss beckons — sun, sand, and serenity await.",
+    title: "Caribbean peak season",
+    text: "Winter sun fills up. Share your window early and we will hold the right room mix for your group.",
     image: assetPath("/images/caribbean.jpeg"),
   },
   {
-    title: "First Time Jet Guide",
-    text: "Your essential first-time jet travel guide: navigating skies with confidence.",
+    title: "First-time flyers",
+    text: "Documents, connections, and what to pack: we walk first-time travelers through the details.",
     image: assetPath("/images/travel-1.jpg"),
   },
 ];

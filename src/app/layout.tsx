@@ -4,6 +4,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { RequestModalProvider } from "@/components/RequestModalProvider";
 import { site } from "@/lib/site";
+import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -30,7 +31,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className={`${figtree.variable} ${fraunces.variable} antialiased`}>
         <RequestModalProvider>
           <Header />

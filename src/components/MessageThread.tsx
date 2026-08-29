@@ -31,7 +31,7 @@ export function MessageThread({
     setError("");
 
     try {
-      const updated = addMessage(requestId, { sender, senderName, body });
+      const updated = await addMessage(requestId, { sender, senderName, body });
       onSent(updated.messages);
       setBody("");
     } catch (err) {
@@ -46,8 +46,7 @@ export function MessageThread({
       <div className="border-b border-line px-5 py-4">
         <h3 className="font-display text-xl text-ink">Trip messages</h3>
         <p className="mt-1 text-sm text-muted">
-          Keep trip decisions here. Email alerts notify the other side when a
-          new message arrives.
+          Keep trip decisions here. An email goes out when a new message arrives.
         </p>
       </div>
 
@@ -62,7 +61,7 @@ export function MessageThread({
               key={message.id}
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                 mine
-                  ? "ml-auto bg-ink text-cream"
+                  ? "ml-auto bg-brand text-cream"
                   : "bg-cream text-ink"
               }`}
             >
@@ -86,13 +85,13 @@ export function MessageThread({
               ? "Ask a question or share more preferences..."
               : "Share options notes, questions, or next steps..."
           }
-          className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
+          className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
         />
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
         <button
           type="submit"
           disabled={sending || !body.trim()}
-          className="mt-3 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-[#e08c00] disabled:opacity-60"
+          className="mt-3 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-brand transition hover:brightness-95 disabled:opacity-60"
         >
           {sending ? "Sending..." : "Send message"}
         </button>

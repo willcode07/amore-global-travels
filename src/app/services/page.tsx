@@ -21,11 +21,10 @@ export default function ServicesPage() {
 
       <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
         <div className="mb-10 max-w-2xl">
-          <h2 className="font-display text-3xl text-ink md:text-4xl">
-            What we offer
-          </h2>
+          <h2 className="font-display text-3xl text-ink md:text-4xl">What we offer</h2>
           <p className="mt-3 text-muted">
-            We&apos;re here for you from start to finish — under one roof.
+            Window-shop the kind of trip you want. Pricing and booking stay with
+            your agent so the personal piece does not get lost.
           </p>
         </div>
 
@@ -55,13 +54,13 @@ export default function ServicesPage() {
         </div>
 
         <div className="mt-12 rounded-3xl bg-cream p-8 md:p-10">
-          <h3 className="font-display text-2xl text-ink">Ready to book?</h3>
+          <h3 className="font-display text-2xl text-ink">Ready for a quote?</h3>
           <p className="mt-2 max-w-xl text-muted">
-            Use the fillable form to share your trip details and we&apos;ll
-            follow up with options.
+            Share your trip details. We follow up in your dashboard with options —
+            including add-ons like travel protection and an Aura frame.
           </p>
-          <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink">
-            Fillable Form
+          <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand">
+            Request a Quote
           </StartTravelButton>
         </div>
       </section>
