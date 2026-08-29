@@ -48,7 +48,7 @@ export default function EnhancePage() {
               href={aura.url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand"
+              className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
             >
               Visit Aura Frames
             </a>

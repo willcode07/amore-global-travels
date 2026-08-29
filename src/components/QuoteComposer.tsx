@@ -164,7 +164,7 @@ export function QuoteComposer({
                   })
                 }
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                  active ? "bg-gold text-brand" : "border border-line bg-surface text-muted"
+                  active ? "bg-gold text-on-gold" : "border border-line bg-surface text-muted"
                 }`}
               >
                 {amenity}
@@ -466,7 +466,7 @@ export function QuoteComposer({
         <button
           type="submit"
           disabled={saving}
-          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand disabled:opacity-60"
+          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
         >
           {saving ? "Publishing..." : "Publish quote to traveler"}
         </button>

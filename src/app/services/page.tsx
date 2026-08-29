@@ -59,7 +59,7 @@ export default function ServicesPage() {
             Share your trip details. We follow up in your dashboard with options —
             including add-ons like travel protection and an Aura frame.
           </p>
-          <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand">
+          <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
             Request a Quote
           </StartTravelButton>
         </div>

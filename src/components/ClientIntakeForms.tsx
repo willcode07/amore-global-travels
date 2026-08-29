@@ -55,7 +55,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-        active ? "bg-gold text-brand" : "border border-line bg-surface text-muted"
+        active ? "bg-gold text-on-gold" : "border border-line bg-surface text-muted"
       }`}
     >
       {label}
@@ -273,7 +273,7 @@ export function ClientIntakeForms({
         {contactStatus && <p className="text-sm text-gold-deep">{contactStatus}</p>}
         <button
           type="submit"
-          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
         >
           Send Contact Us PDF
         </button>
@@ -492,7 +492,7 @@ export function ClientIntakeForms({
         {quoteStatus && <p className="text-sm text-gold-deep">{quoteStatus}</p>}
         <button
           type="submit"
-          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+          className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
         >
           Submit Quote PDF
         </button>

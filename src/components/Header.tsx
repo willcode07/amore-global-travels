@@ -44,7 +44,7 @@ export function Header() {
               My Trip
             </Link>
             {quote ? (
-              <StartTravelButton className="ml-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-brand transition hover:brightness-95">
+              <StartTravelButton className="ml-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold transition hover:brightness-95">
                 {quote.label}
               </StartTravelButton>
             ) : null}
@@ -87,7 +87,7 @@ export function Header() {
               My Trip
             </Link>
             {quote ? (
-              <StartTravelButton className="mt-2 rounded-full bg-gold px-4 py-3 text-left text-sm font-semibold text-brand">
+              <StartTravelButton className="mt-2 rounded-full bg-gold px-4 py-3 text-left text-sm font-semibold text-on-gold">
                 {quote.label}
               </StartTravelButton>
             ) : null}

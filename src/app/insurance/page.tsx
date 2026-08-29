@@ -60,7 +60,7 @@ export default function InsurancePage() {
             optional section on your proposal.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand">
+            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
               Request a Quote
             </StartTravelButton>
             <Link

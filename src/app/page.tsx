@@ -44,7 +44,7 @@ export default function HomePage() {
             {site.tagline}
           </p>
           <div className="mt-8 flex flex-wrap gap-3 amore-fade-up-delay-2">
-            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand transition hover:brightness-95">
+            <StartTravelButton className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold transition hover:brightness-95">
               Request a Quote
             </StartTravelButton>
             <Link
@@ -69,7 +69,7 @@ export default function HomePage() {
         <div className="grid gap-6 md:grid-cols-3">
           {journeySteps.map((step, index) => (
             <div key={step.title} className="rounded-3xl border border-line bg-surface p-6">
-              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-gold text-sm font-semibold text-brand">
+              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-gold text-sm font-semibold text-on-gold">
                 {index + 1}
               </div>
               <h3 className="font-display text-xl text-ink">{step.title}</h3>
@@ -194,7 +194,7 @@ export default function HomePage() {
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 href="/enhance-your-trip"
-                className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand"
+                className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
               >
                 See the Aura add-on
               </Link>
@@ -268,7 +268,7 @@ export default function HomePage() {
             Share a destination and a window. We will come back with a quote you
             can sit with — not a checkout page.
           </p>
-          <StartTravelButton className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand transition hover:brightness-95">
+          <StartTravelButton className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold transition hover:brightness-95">
             Request a Quote
           </StartTravelButton>
         </div>
