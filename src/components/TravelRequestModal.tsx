@@ -154,7 +154,7 @@ export function TravelRequestModal({
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
-                  className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+                  className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                   onClick={() => {
                     onClose();
                     router.push("/dashboard");
@@ -215,7 +215,7 @@ export function TravelRequestModal({
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+                  className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                 >
                   Continue
                 </button>
@@ -232,7 +232,7 @@ export function TravelRequestModal({
                         onClick={() => setTripType(option.id)}
                         className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                           tripType === option.id
-                            ? "bg-gold text-brand"
+                            ? "bg-gold text-on-gold"
                             : "border border-line bg-surface text-muted"
                         }`}
                       >
@@ -298,7 +298,7 @@ export function TravelRequestModal({
                   <button
                     type="button"
                     onClick={() => setStep(3)}
-                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                   >
                     Continue
                   </button>
@@ -318,7 +318,7 @@ export function TravelRequestModal({
                           onClick={() => toggleStyle(style)}
                           className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                             active
-                              ? "bg-gold text-brand"
+                              ? "bg-gold text-on-gold"
                               : "border border-line bg-surface text-muted"
                           }`}
                         >
@@ -371,7 +371,7 @@ export function TravelRequestModal({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand disabled:opacity-60"
+                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
                   >
                     {submitting ? "Submitting..." : "Submit travel request"}
                   </button>

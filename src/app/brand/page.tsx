@@ -85,7 +85,7 @@ export default function BrandPage() {
                   height={72}
                   className="mx-auto h-16 w-16 object-contain"
                 />
-                <p className="mt-3 text-center text-xs text-cream/70">On ink</p>
+                <p className="mt-3 text-center text-xs text-on-brand/70">On ink</p>
               </div>
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function BrandPage() {
             <div className="mt-6 space-y-4 rounded-[1.4rem] border border-line bg-cream p-6">
               <button
                 type="button"
-                className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand"
+                className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
               >
                 Primary · Gold
               </button>
@@ -188,16 +188,16 @@ export default function BrandPage() {
           </div>
         </div>
 
-        <div className="mt-16 rounded-[1.4rem] bg-brand px-6 py-8 text-cream md:px-10">
+        <div className="mt-16 rounded-[1.4rem] bg-brand px-6 py-8 text-on-brand md:px-10">
           <h3 className="font-display text-2xl">Contact standards</h3>
-          <ul className="mt-4 space-y-2 text-sm text-cream/80">
+          <ul className="mt-4 space-y-2 text-sm text-on-brand/80">
             <li>{brand.contact.email}</li>
             <li>{brand.contact.phone}</li>
             <li>{brand.contact.address}</li>
           </ul>
           <Link
             href="/contact-us"
-            className="mt-6 inline-flex rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-brand"
+            className="mt-6 inline-flex rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold"
           >
             View Contact Us
           </Link>

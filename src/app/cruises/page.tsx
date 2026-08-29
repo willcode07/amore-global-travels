@@ -70,7 +70,7 @@ export default function CruisesPage() {
           <StartTravelButton
             tripType="cruise"
             destination="Cruise"
-            className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand"
+            className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
           >
             Request a cruise quote
           </StartTravelButton>

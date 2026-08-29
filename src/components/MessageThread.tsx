@@ -61,11 +61,11 @@ export function MessageThread({
               key={message.id}
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                 mine
-                  ? "ml-auto bg-brand text-cream"
+                  ? "ml-auto bg-brand text-on-brand"
                   : "bg-cream text-ink"
               }`}
             >
-              <div className={`mb-1 text-xs ${mine ? "text-cream/70" : "text-muted"}`}>
+              <div className={`mb-1 text-xs ${mine ? "text-on-brand/70" : "text-muted"}`}>
                 {message.senderName} ·{" "}
                 {new Date(message.createdAt).toLocaleString()}
               </div>
@@ -91,7 +91,7 @@ export function MessageThread({
         <button
           type="submit"
           disabled={sending || !body.trim()}
-          className="mt-3 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-brand transition hover:brightness-95 disabled:opacity-60"
+          className="mt-3 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold transition hover:brightness-95 disabled:opacity-60"
         >
           {sending ? "Sending..." : "Send message"}
         </button>

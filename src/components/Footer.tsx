@@ -7,7 +7,7 @@ import { navLinks, site } from "@/lib/site";
 
 export function Footer() {
   return (
-    <footer className="border-t border-line bg-brand text-cream">
+    <footer className="border-t border-line bg-brand text-on-brand">
       <div className="mx-auto grid max-w-6xl gap-12 px-5 py-16 md:grid-cols-[1.35fr_1fr_1fr] md:px-8">
         <div>
           <div className="mb-5 flex items-center gap-3">
@@ -19,7 +19,7 @@ export function Footer() {
               </p>
             </div>
           </div>
-          <p className="max-w-sm text-sm leading-relaxed text-cream/72">
+          <p className="max-w-sm text-sm leading-relaxed text-on-brand/72">
             {site.tagline}.
           </p>
         </div>
@@ -28,7 +28,7 @@ export function Footer() {
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-gold">
             Explore
           </h3>
-          <ul className="space-y-2.5 text-sm text-cream/80">
+          <ul className="space-y-2.5 text-sm text-on-brand/80">
             {navLinks.map((link) => (
               <li key={link.label}>
                 {link.opensForm ? (
@@ -59,7 +59,7 @@ export function Footer() {
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-gold">
             Contact
           </h3>
-          <ul className="space-y-2.5 text-sm text-cream/80">
+          <ul className="space-y-2.5 text-sm text-on-brand/80">
             <li>
               <a href={`mailto:${site.email}`} className="transition hover:text-gold">
                 {site.email}
@@ -75,7 +75,7 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 py-5 text-center text-xs text-cream/50">
+      <div className="border-t border-white/10 py-5 text-center text-xs text-on-brand/50">
         © {new Date().getFullYear()} {site.name} Travels. All rights reserved.
       </div>
     </footer>

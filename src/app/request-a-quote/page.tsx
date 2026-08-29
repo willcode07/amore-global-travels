@@ -29,7 +29,7 @@ export default function RequestAQuotePage() {
             appears in the agent inbox and unlocks a dashboard of every trip under
             your email and phone.
           </p>
-          <StartTravelButton className="mt-8 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-brand">
+          <StartTravelButton className="mt-8 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
             Request a Quote
           </StartTravelButton>
           <p className="mt-4 text-xs text-muted">

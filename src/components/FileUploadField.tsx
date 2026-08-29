@@ -29,7 +29,7 @@ export function FileUploadField({
         type="file"
         accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
         disabled={busy}
-        className="w-full text-sm text-muted file:mr-3 file:rounded-full file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand"
+        className="w-full text-sm text-muted file:mr-3 file:rounded-full file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-on-gold"
         onChange={async (event) => {
           const file = event.target.files?.[0];
           event.target.value = "";

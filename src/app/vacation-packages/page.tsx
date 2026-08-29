@@ -66,7 +66,7 @@ export default function VacationPackagesPage() {
                 <StartTravelButton
                   destination={region.name}
                   tripType="vacation_package"
-                  className="mt-6 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+                  className="mt-6 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                 >
                   Request {region.name === "Africa" ? "an" : "a"} {region.name} quote
                 </StartTravelButton>

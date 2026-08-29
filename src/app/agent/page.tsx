@@ -289,7 +289,7 @@ export default function AgentPage() {
           {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
           <button
             type="submit"
-            className="mt-4 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand"
+            className="mt-4 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
           >
             {isApiBackend() && !otpSent ? "Send code" : "Enter inbox"}
           </button>
@@ -341,7 +341,7 @@ export default function AgentPage() {
           <button
             type="button"
             onClick={() => setShowClientForms((open) => !open)}
-            className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-brand"
+            className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
           >
             {showClientForms ? "Hide client forms" : "Open client forms"}
           </button>
@@ -476,7 +476,7 @@ export default function AgentPage() {
                     onClick={() => updateStatus(status)}
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                       selected.status === status
-                        ? "bg-gold text-brand"
+                        ? "bg-gold text-on-gold"
                         : "border border-line bg-surface text-muted"
                     }`}
                   >
@@ -494,7 +494,7 @@ export default function AgentPage() {
                     onClick={() => updatePayment(status)}
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                       selected.paymentStatus === status
-                        ? "bg-brand text-cream"
+                        ? "bg-brand text-on-brand"
                         : "border border-line bg-surface text-muted"
                     }`}
                   >
@@ -594,7 +594,7 @@ export default function AgentPage() {
                 <button
                   type="button"
                   onClick={() => setComposing(true)}
-                  className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-brand"
+                  className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold"
                 >
                   {selected.quotes.length ? "Add another quote" : "Build quote"}
                 </button>
@@ -672,7 +672,7 @@ export default function AgentPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand disabled:opacity-60"
+                  className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
                 >
                   {saving ? "Saving..." : "Publish option to traveler"}
                 </button>

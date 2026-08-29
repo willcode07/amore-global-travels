@@ -229,7 +229,7 @@ function DashboardInner() {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-brand disabled:opacity-60"
+            className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
           >
             {loading
               ? "Please wait..."
@@ -248,7 +248,7 @@ function DashboardInner() {
               {trips.length === 1 ? "" : "s"}
             </p>
             <div className="flex flex-wrap gap-2">
-              <StartTravelButton className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-brand">
+              <StartTravelButton className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold">
                 Plan another trip
               </StartTravelButton>
               <button
@@ -413,7 +413,7 @@ function DashboardInner() {
                           type="button"
                           disabled={chosen || selecting === quote.id}
                           onClick={() => selectQuote(quote.id)}
-                          className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-cream disabled:opacity-60"
+                          className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-on-brand disabled:opacity-60"
                         >
                           {chosen
                             ? "Selected"
@@ -490,7 +490,7 @@ function DashboardInner() {
                             type="button"
                             disabled={chosen || selecting === option.id}
                             onClick={() => selectOption(option.id)}
-                            className="mt-5 w-full rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-cream disabled:opacity-60"
+                            className="mt-5 w-full rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand disabled:opacity-60"
                           >
                             {chosen
                               ? "Selected"

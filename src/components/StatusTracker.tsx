@@ -21,7 +21,7 @@ export function StatusTracker({ status }: { status: RequestStatus }) {
           >
             <div
               className={`mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-                complete || current ? "bg-gold text-brand" : "bg-line text-muted"
+                complete || current ? "bg-gold text-on-gold" : "bg-line text-muted"
               }`}
             >
               {complete ? "✓" : index + 1}
