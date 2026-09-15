@@ -1,4 +1,4 @@
-import type { RequestStatus } from "@/lib/types";
+import type { PaymentStatus, RequestStatus } from "@/lib/types";
 
 /** Blank first, then named agents per client meeting notes. */
 export const agents = [
@@ -9,6 +9,40 @@ export const agents = [
   { id: "stephanie", name: "Stephanie Burney" },
   { id: "shonya", name: "Shonya Morrison" },
 ] as const;
+
+export const assignableAgents = agents.filter((agent) => agent.id !== "blank");
+export const defaultAssignedAgentId = "shonya";
+
+export function normalizeAssignedAgentId(value: unknown) {
+  const id = typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
+  return (
+    assignableAgents.find(
+      (agent) => agent.id === id || agent.name.toLocaleLowerCase() === id,
+    )?.id ??
+    defaultAssignedAgentId
+  );
+}
+
+export function assignedAgentIdForPreference(preferredAgent: unknown) {
+  const candidate =
+    typeof preferredAgent === "string"
+      ? preferredAgent.trim().toLocaleLowerCase()
+      : "";
+  const match = assignableAgents.find(
+    (agent) =>
+      agent.name.toLocaleLowerCase() === candidate ||
+      agent.id.toLocaleLowerCase() === candidate,
+  );
+  return match?.id ?? defaultAssignedAgentId;
+}
+
+export function agentNameForId(id: unknown) {
+  const normalized = normalizeAssignedAgentId(id);
+  return (
+    assignableAgents.find((agent) => agent.id === normalized)?.name ??
+    "Shonya Morrison"
+  );
+}
 
 export const contactMethodOptions = [
   "Email",
@@ -75,19 +109,19 @@ export const statusOrder = [
   "booking_confirmed",
 ] as const;
 
-export const paymentLabels: Record<string, string> = {
+export const paymentLabels: Record<PaymentStatus, string> = {
   not_requested: "No payment yet",
-  deposit_due: "Deposit due",
   paid: "Paid",
   refunded: "Refunded",
 };
 
 export const paymentOrder = [
   "not_requested",
-  "deposit_due",
   "paid",
   "refunded",
-] as const;
+] as const satisfies readonly PaymentStatus[];
+
+export const installmentPlanLabel = "Installment plan";
 
 export function furthestStatus(
   a: RequestStatus,

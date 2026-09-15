@@ -30,6 +30,31 @@ export const vacationRegions = [
   },
 ] as const;
 
+export const featuredDestinations = [
+  ...new Set(vacationRegions.flatMap((region) => [region.name, ...region.destinations])),
+  "Mediterranean",
+  "Alaska",
+  "Hawaii",
+  "Mexico",
+  "Dubai",
+];
+
+export const commonDepartureCities = [
+  "Atlanta, GA",
+  "Miami, FL",
+  "Charlotte, NC",
+  "New York, NY",
+  "Newark, NJ",
+  "Washington, DC",
+  "Orlando, FL",
+  "Tampa, FL",
+  "Dallas, TX",
+  "Houston, TX",
+  "Chicago, IL",
+  "Los Angeles, CA",
+  "Fort Lauderdale, FL",
+];
+
 export const aura = {
   name: "Aura Frames",
   url: "https://www.auraframes.com/",

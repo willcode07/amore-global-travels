@@ -44,9 +44,11 @@ export function MessageThread({
   return (
     <div className="rounded-3xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
-        <h3 className="font-display text-xl text-ink">Trip messages</h3>
+        <h3 className="font-display text-xl text-ink">Messages</h3>
         <p className="mt-1 text-sm text-muted">
-          Keep trip decisions here. An email goes out when a new message arrives.
+          {sender === "traveler"
+            ? "Talk with your agent about this trip."
+            : "Replies email the traveler."}
         </p>
       </div>
 
@@ -82,8 +84,8 @@ export function MessageThread({
           rows={3}
           placeholder={
             sender === "traveler"
-              ? "Ask a question or share more preferences..."
-              : "Share options notes, questions, or next steps..."
+              ? "Ask a question or add a detail…"
+              : "Share notes, questions, or next steps…"
           }
           className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
         />

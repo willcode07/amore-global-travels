@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { agents, budgetOptions, tripStyleOptions, tripTypeOptions } from "@/lib/agents";
+import { PlaceSuggestInput } from "@/components/PlaceSuggestInput";
+import { agents, budgetOptions, tripTypeOptions } from "@/lib/agents";
 import { createRequest } from "@/lib/requests";
 import { readSession } from "@/lib/session";
 import { TripType } from "@/lib/types";
@@ -16,6 +17,37 @@ type TravelRequestModalProps = {
   };
 };
 
+function todayIso() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function formatTravelWindow(depart: string, returnDate: string) {
+  const pretty = (iso: string) => {
+    if (!iso) return "";
+    const [year, month, day] = iso.split("-").map(Number);
+    if (!year || !month || !day) return iso;
+    return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+  if (depart && returnDate) return `${pretty(depart)} – ${pretty(returnDate)}`;
+  if (depart) return `From ${pretty(depart)}`;
+  if (returnDate) return `Until ${pretty(returnDate)}`;
+  return "Flexible dates";
+}
+
+function splitName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "", last: "" };
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
 export function TravelRequestModal({
   open,
   onClose,
@@ -26,12 +58,16 @@ export function TravelRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resultName, setResultName] = useState("");
-  const [tripStyle, setTripStyle] = useState<string[]>([]);
   const [tripType, setTripType] = useState<TripType>("not_sure");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [destination, setDestination] = useState("");
+  const [departureCity, setDepartureCity] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const minDate = useMemo(() => todayIso(), []);
 
   useEffect(() => {
     if (!open) return;
@@ -47,33 +83,40 @@ export function TravelRequestModal({
       setStep(1);
       setError("");
       setResultName("");
-      setTripStyle([]);
       setSubmitting(false);
+      setDepartureDate("");
+      setReturnDate("");
+      setDepartureCity("");
       return;
     }
 
     const session = readSession();
-    setFullName(session?.fullName ?? "");
+    const names = splitName(session?.fullName ?? "");
+    setFirstName(names.first);
+    setLastName(names.last);
     setEmail(session?.email ?? "");
     setPhone(session?.phone ?? "");
     setDestination(prefill?.destination ?? "");
     setTripType(prefill?.tripType ?? "not_sure");
   }, [open, prefill?.destination, prefill?.tripType]);
 
-  function toggleStyle(style: string) {
-    setTripStyle((current) =>
-      current.includes(style)
-        ? current.filter((item) => item !== style)
-        : [...current, style],
-    );
+  function goNext() {
+    setError("");
+    setStep((current) => Math.min(current + 1, 3));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (step < 3) {
+      goNext();
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     const form = new FormData(event.currentTarget);
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
 
     try {
       const request = await createRequest({
@@ -81,13 +124,12 @@ export function TravelRequestModal({
         email,
         phone,
         destination,
-        departureCity: String(form.get("departureCity") ?? ""),
-        travelWindow: String(form.get("travelWindow") ?? ""),
+        departureCity,
+        travelWindow: formatTravelWindow(departureDate, returnDate),
         travelers: String(form.get("travelers") ?? "1"),
         budget: String(form.get("budget") ?? ""),
         preferredAgent: String(form.get("preferredAgent") ?? ""),
         preferences: String(form.get("preferences") ?? ""),
-        tripStyle,
         tripType,
       });
       setResultName(request.traveler.fullName);
@@ -182,15 +224,26 @@ export function TravelRequestModal({
               </div>
 
               <div className={step === 1 ? "grid gap-4" : "hidden"}>
-                <label className="block text-sm">
-                  <span className="mb-1.5 block font-medium text-ink">Full legal name</span>
-                  <input
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Exactly as it should appear on travel documents"
-                    className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-                  />
-                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">First name</span>
+                    <input
+                      value={firstName}
+                      onChange={(event) => setFirstName(event.target.value)}
+                      autoComplete="given-name"
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">Last name</span>
+                    <input
+                      value={lastName}
+                      onChange={(event) => setLastName(event.target.value)}
+                      autoComplete="family-name"
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm">
                     <span className="mb-1.5 block font-medium text-ink">Email</span>
@@ -198,6 +251,7 @@ export function TravelRequestModal({
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
+                      autoComplete="email"
                       className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
                     />
                   </label>
@@ -208,13 +262,14 @@ export function TravelRequestModal({
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       placeholder="Used with email to open your dashboard"
+                      autoComplete="tel"
                       className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
                     />
                   </label>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={goNext}
                   className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                 >
                   Continue
@@ -222,49 +277,36 @@ export function TravelRequestModal({
               </div>
 
               <div className={step === 2 ? "grid gap-4" : "hidden"}>
-                <div>
-                  <p className="mb-2 text-sm font-medium text-ink">What kind of trip?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {tripTypeOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setTripType(option.id)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                          tripType === option.id
-                            ? "bg-gold text-on-gold"
-                            : "border border-line bg-surface text-muted"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <PlaceSuggestInput
+                  kind="destination"
+                  label="Where do you want to go?"
+                  value={destination}
+                  onChange={setDestination}
+                  placeholder="Jamaica, Ghana, a cruise from Miami..."
+                />
                 <label className="block text-sm">
-                  <span className="mb-1.5 block font-medium text-ink">
-                    Where do you want to go?
-                  </span>
-                  <input
-                    value={destination}
-                    onChange={(event) => setDestination(event.target.value)}
-                    placeholder="Jamaica, Ghana, a cruise from Miami..."
+                  <span className="mb-1.5 block font-medium text-ink">What kind of trip?</span>
+                  <select
+                    value={tripType}
+                    onChange={(event) => setTripType(event.target.value as TripType)}
                     className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-                  />
+                  >
+                    {tripTypeOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label="Departure city"
+                  <PlaceSuggestInput
+                    kind="city"
                     name="departureCity"
+                    label="Departure city"
+                    value={departureCity}
+                    onChange={setDepartureCity}
                     placeholder="Atlanta, Miami..."
                   />
-                  <Field
-                    label="When do you want to travel?"
-                    name="travelWindow"
-                    placeholder="Oct 2026 / flexible dates"
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
                   <Field
                     label="Number of travelers"
                     name="travelers"
@@ -272,21 +314,56 @@ export function TravelRequestModal({
                     min="1"
                     defaultValue="2"
                   />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm">
-                    <span className="mb-1.5 block font-medium text-ink">Budget range</span>
-                    <select
-                      name="budget"
+                    <span className="mb-1.5 block font-medium text-ink">
+                      Departure date
+                    </span>
+                    <input
+                      type="date"
+                      value={departureDate}
+                      min={minDate}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setDepartureDate(next);
+                        if (returnDate && next && returnDate < next) {
+                          setReturnDate("");
+                        }
+                      }}
                       className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-                      defaultValue={budgetOptions[1]}
-                    >
-                      {budgetOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">
+                      Return date
+                    </span>
+                    <input
+                      type="date"
+                      value={returnDate}
+                      min={departureDate || minDate}
+                      onChange={(event) => setReturnDate(event.target.value)}
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    />
                   </label>
                 </div>
+                <p className="text-xs text-muted">
+                  Leave dates blank if the window is still flexible.
+                </p>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-ink">Budget range</span>
+                  <select
+                    name="budget"
+                    className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    defaultValue={budgetOptions[1]}
+                  >
+                    {budgetOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -297,7 +374,7 @@ export function TravelRequestModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStep(3)}
+                    onClick={goNext}
                     className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                   >
                     Continue
@@ -306,29 +383,6 @@ export function TravelRequestModal({
               </div>
 
               <div className={step === 3 ? "grid gap-4" : "hidden"}>
-                <div>
-                  <p className="mb-2 text-sm font-medium text-ink">Trip style preferences</p>
-                  <div className="flex flex-wrap gap-2">
-                    {tripStyleOptions.map((style) => {
-                      const active = tripStyle.includes(style);
-                      return (
-                        <button
-                          key={style}
-                          type="button"
-                          onClick={() => toggleStyle(style)}
-                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                            active
-                              ? "bg-gold text-on-gold"
-                              : "border border-line bg-surface text-muted"
-                          }`}
-                        >
-                          {style}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium text-ink">
                     Preferred agent (optional)
@@ -348,7 +402,7 @@ export function TravelRequestModal({
 
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium text-ink">
-                    Preferences & notes
+                    Notes to the Agent
                   </span>
                   <textarea
                     name="preferences"
@@ -368,13 +422,15 @@ export function TravelRequestModal({
                   >
                     Back
                   </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
-                  >
-                    {submitting ? "Submitting..." : "Submit travel request"}
-                  </button>
+                  {step === 3 ? (
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
+                    >
+                      {submitting ? "Submitting..." : "Submit travel request"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </form>

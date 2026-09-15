@@ -1,26 +1,50 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ClientIntakeForms } from "@/components/ClientIntakeForms";
-import { FileUploadField } from "@/components/FileUploadField";
+import { AgentClientDetails } from "@/components/AgentClientDetails";
 import { MessageThread } from "@/components/MessageThread";
 import { QuoteComposer } from "@/components/QuoteComposer";
 import { QuoteDocument } from "@/components/QuoteDocument";
 import { StatusTracker } from "@/components/StatusTracker";
 import {
+  agentNameForId,
+  assignableAgents,
+  defaultAssignedAgentId,
+  installmentPlanLabel,
+  normalizeAssignedAgentId,
   paymentLabels,
   paymentOrder,
-  statusLabels,
-  statusOrder,
   tripTypeLabels,
 } from "@/lib/agents";
-import { confirmedTripsToCsv, downloadCsv, requestsToCsv } from "@/lib/csv";
+import { downloadCsv, requestsToCsv } from "@/lib/csv";
 import { isApiBackend } from "@/lib/data/mode";
 import { resetApiAuthCache } from "@/lib/data/session-cache";
-import { readNotifications } from "@/lib/notifications";
+import {
+  formatDisplayDate,
+  formatIntakeAddress,
+  formatPartySummary,
+  isIntakeComplete,
+  QuoteIntakeFields,
+  toTripIntake,
+} from "@/lib/intake";
+import {
+  journeyStageIndex,
+  statusForJourneyStage,
+  tripStatusSteps,
+  tripStatusTitle,
+} from "@/lib/journey";
+import {
+  AgentAssignmentNotification,
+  agentAssignmentNotifications,
+  clearAgentAssignmentNotifications,
+  quoteAssignmentTitle,
+  readAgentAssignmentNotifications,
+  readNotifications,
+  recordAgentAssignment,
+} from "@/lib/notifications";
+import { evaluateQuoteQuality } from "@/lib/quote-quality";
 import { listRequests, updateRequest } from "@/lib/requests";
 import { emailsMatch, phonesMatch } from "@/lib/session";
-import { site } from "@/lib/site";
 import { logoutApiSession, postJson } from "@/lib/uploads";
 import {
   DemoNotification,
@@ -28,9 +52,28 @@ import {
   RequestStatus,
   TravelProposal,
   TravelRequest,
+  TripType,
 } from "@/lib/types";
 
 const AGENT_KEY = "amore_agent_unlocked";
+const VIEWING_AS_KEY = "amore_agent_viewing_as";
+
+type QueueSort = "assigned" | "agent" | "traveler";
+
+function todayInputDate() {
+  const now = new Date();
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function paymentDateFor(request: TravelRequest) {
+  if (request.paymentStatus === "refunded") return request.refundedAt ?? "";
+  if (request.paymentStatus === "paid") return request.paidAt ?? "";
+  return "";
+}
 
 export default function AgentPage() {
   const [unlocked, setUnlocked] = useState(false);
@@ -40,6 +83,8 @@ export default function AgentPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [demoCode, setDemoCode] = useState("");
   const [clienteaseRef, setClienteaseRef] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
   const [requests, setRequests] = useState<TravelRequest[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -48,29 +93,57 @@ export default function AgentPage() {
   const [composing, setComposing] = useState(false);
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState<DemoNotification[]>([]);
+  const [viewingAgentId, setViewingAgentId] = useState(defaultAssignedAgentId);
+  const [viewingAgentInitialized, setViewingAgentInitialized] = useState(false);
+  const [onlyMyAssignments, setOnlyMyAssignments] = useState(false);
+  const [queueSort, setQueueSort] = useState<QueueSort>("assigned");
+  const [assignmentAlerts, setAssignmentAlerts] = useState<AgentAssignmentNotification[]>(
+    [],
+  );
+  const [unreadAssignmentIds, setUnreadAssignmentIds] = useState<string[]>([]);
 
   const selected = useMemo(
     () => requests.find((request) => request.id === selectedId) ?? null,
     [requests, selectedId],
   );
+  const selectedPaymentDate = selected ? paymentDateFor(selected) : "";
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return requests;
-    return requests.filter((request) =>
+    const matching = !needle
+      ? requests
+      : requests.filter((request) =>
       [
         request.traveler.fullName,
         request.traveler.email,
         request.traveler.phone,
         request.trip.destination,
-        request.tripRef,
         request.trip.tripType,
       ]
         .join(" ")
         .toLowerCase()
         .includes(needle),
-    );
-  }, [query, requests]);
+      );
+    const visible = onlyMyAssignments
+      ? matching.filter((request) => request.assignedAgentId === viewingAgentId)
+      : matching;
+    return [...visible].sort((a, b) => {
+      if (queueSort === "assigned") {
+        const aAssigned = a.assignedAgentId === viewingAgentId ? 0 : 1;
+        const bAssigned = b.assignedAgentId === viewingAgentId ? 0 : 1;
+        if (aAssigned !== bAssigned) return aAssigned - bAssigned;
+      }
+
+      if (queueSort === "agent") {
+        const byAgent = agentNameForId(a.assignedAgentId).localeCompare(
+          agentNameForId(b.assignedAgentId),
+        );
+        if (byAgent !== 0) return byAgent;
+      }
+
+      return a.traveler.fullName.localeCompare(b.traveler.fullName);
+    });
+  }, [onlyMyAssignments, query, queueSort, requests, viewingAgentId]);
 
   const relatedCount = selected
     ? requests.filter(
@@ -99,7 +172,9 @@ export default function AgentPage() {
 
   useEffect(() => {
     setClienteaseRef(selected?.clienteaseRef ?? "");
-  }, [selected?.id, selected?.clienteaseRef]);
+    setPaymentNote(selected?.paymentNote ?? "");
+    setPaymentDate(selectedPaymentDate);
+  }, [selected?.id, selected?.clienteaseRef, selected?.paymentNote, selectedPaymentDate]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -107,6 +182,25 @@ export default function AgentPage() {
     setNotes(readNotifications().filter((note) => note.to.includes("@")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked) {
+      setViewingAgentInitialized(false);
+      return;
+    }
+    const stored = localStorage.getItem(VIEWING_AS_KEY);
+    const next = normalizeAssignedAgentId(stored);
+    if (stored !== next) localStorage.setItem(VIEWING_AS_KEY, next);
+    setViewingAgentId(next);
+    setViewingAgentInitialized(true);
+  }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked || !viewingAgentInitialized) return;
+    const unread = readAgentAssignmentNotifications(viewingAgentId);
+    setUnreadAssignmentIds(unread);
+    setAssignmentAlerts(agentAssignmentNotifications(viewingAgentId));
+  }, [unlocked, viewingAgentId, viewingAgentInitialized]);
 
   async function loadRequests() {
     try {
@@ -159,6 +253,7 @@ export default function AgentPage() {
     }
     setUnlocked(false);
     setRequests([]);
+    setViewingAgentInitialized(false);
     setOtpSent(false);
     setOtpCode("");
     setDemoCode("");
@@ -166,7 +261,7 @@ export default function AgentPage() {
 
   async function updateStatus(status: RequestStatus) {
     if (!selected) return;
-    if (selected.status === status) return;
+    if (journeyStageIndex(selected.status) === journeyStageIndex(status)) return;
     setSaving(true);
     setError("");
     try {
@@ -184,7 +279,15 @@ export default function AgentPage() {
     if (!selected) return;
     setSaving(true);
     try {
-      const updated = await updateRequest(selected.id, { paymentStatus: status });
+      const updated = await updateRequest(selected.id, {
+        paymentStatus: status,
+        ...(status === "paid"
+          ? { paidAt: selected.paidAt || todayInputDate() }
+          : {}),
+        ...(status === "refunded"
+          ? { refundedAt: selected.refundedAt || todayInputDate() }
+          : {}),
+      });
       await loadRequests();
       setSelectedId(updated.id);
     } catch (err) {
@@ -194,27 +297,91 @@ export default function AgentPage() {
     }
   }
 
-  async function addOption(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function toggleInstallmentPlan() {
     if (!selected) return;
     setSaving(true);
     setError("");
-    const form = new FormData(event.currentTarget);
     try {
       const updated = await updateRequest(selected.id, {
-        option: {
-          title: String(form.get("title") ?? ""),
-          summary: String(form.get("summary") ?? ""),
-          estimatedPrice: String(form.get("estimatedPrice") ?? ""),
-          highlights: String(form.get("highlights") ?? ""),
-          flyerUrl: String(form.get("flyerUrl") ?? ""),
-        },
+        installmentPlanActive: !selected.installmentPlanActive,
       });
-      event.currentTarget.reset();
       await loadRequests();
       setSelectedId(updated.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to add option.");
+      setError(err instanceof Error ? err.message : "Unable to update installment plan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function refreshAssignmentAlerts(agentId = viewingAgentId) {
+    const unread = readAgentAssignmentNotifications(agentId);
+    setUnreadAssignmentIds(unread);
+    setAssignmentAlerts(agentAssignmentNotifications(agentId));
+  }
+
+  function clearNotifications() {
+    clearAgentAssignmentNotifications(viewingAgentId);
+    setAssignmentAlerts([]);
+    setUnreadAssignmentIds([]);
+  }
+
+  async function updateAssignedAgent(assignedAgentId: string) {
+    if (!selected) return;
+    const nextAgentId = normalizeAssignedAgentId(assignedAgentId);
+    if (selected.assignedAgentId === nextAgentId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateRequest(selected.id, { assignedAgentId: nextAgentId });
+      recordAgentAssignment(updated, updated.assignedAgentId);
+      await loadRequests();
+      setSelectedId(updated.id);
+      refreshAssignmentAlerts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to reassign this travel quote.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePaymentDetails() {
+    if (!selected) return;
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateRequest(selected.id, {
+        paymentNote: paymentNote.trim(),
+        ...(selected.paymentStatus === "paid" ? { paidAt: paymentDate } : {}),
+        ...(selected.paymentStatus === "refunded" ? { refundedAt: paymentDate } : {}),
+      });
+      await loadRequests();
+      setSelectedId(updated.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save payment details.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveClientIntake(data: QuoteIntakeFields, tripType: TripType) {
+    if (!selected) return;
+    const previousAgentId = selected.assignedAgentId;
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateRequest(selected.id, {
+        intake: toTripIntake(data, tripType, selected.intake?.completedAt),
+      });
+      if (updated.assignedAgentId !== previousAgentId) {
+        recordAgentAssignment(updated, updated.assignedAgentId);
+        refreshAssignmentAlerts();
+      }
+      await loadRequests();
+      setSelectedId(updated.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save trip details.");
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -222,6 +389,19 @@ export default function AgentPage() {
 
   async function publishQuote(quote: TravelProposal) {
     if (!selected) return;
+    if (!isIntakeComplete(selected)) {
+      setError("Trip details must be completed before a quote can be published.");
+      return;
+    }
+    const quality = evaluateQuoteQuality(quote);
+    if (!quality.canPublish) {
+      setError(
+        `Quote has ${quality.errors.length} blocking Quality Check issue${
+          quality.errors.length === 1 ? "" : "s"
+        }. Resolve them before sending.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       const updated = await updateRequest(selected.id, { quote });
@@ -308,15 +488,46 @@ export default function AgentPage() {
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-            Agent tools
+            Agent Portal
           </p>
-          <h1 className="mt-2 font-display text-4xl text-ink">Travel request inbox</h1>
+          <h1 className="mt-2 font-display text-4xl text-ink">Travel Quotes</h1>
           <p className="mt-2 max-w-2xl text-muted">
-            One row per trip. Publish a written quote, update payment, and export
-            a CSV for ClientEase. Traveler emails fire on every message.
+            Review traveler details, build a verified quote, track payment, and keep
+            the traveler informed in one place.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <label className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink">
+            <span className="text-muted">Viewing as</span>
+            <select
+              value={viewingAgentId}
+              onChange={(event) => {
+                const next = normalizeAssignedAgentId(event.target.value);
+                localStorage.setItem(VIEWING_AS_KEY, next);
+                setViewingAgentId(next);
+              }}
+              className="bg-transparent text-sm font-semibold outline-none"
+              aria-label="Viewing agent"
+            >
+              {assignableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            aria-pressed={onlyMyAssignments}
+            onClick={() => setOnlyMyAssignments((active) => !active)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              onlyMyAssignments
+                ? "bg-cream text-gold-deep"
+                : "border border-line text-ink"
+            }`}
+          >
+            Assigned to me
+          </button>
           <button
             type="button"
             onClick={() =>
@@ -328,22 +539,13 @@ export default function AgentPage() {
           </button>
           <button
             type="button"
-            onClick={() =>
-              downloadCsv(
-                `amore-clientease-${Date.now()}.csv`,
-                confirmedTripsToCsv(requests),
-              )
-            }
-            className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
-          >
-            Export confirmed for ClientEase
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowClientForms((open) => !open)}
+            onClick={() => {
+              setShowClientForms((open) => !open);
+              setComposing(false);
+            }}
             className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
           >
-            {showClientForms ? "Hide client forms" : "Open client forms"}
+            Clients
           </button>
           <button
             type="button"
@@ -362,16 +564,49 @@ export default function AgentPage() {
         </div>
       </div>
 
+      {assignmentAlerts.length > 0 ? (
+        <section className="mb-6 rounded-3xl border border-line bg-cream px-5 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="font-display text-xl text-ink">Notifications</h2>
+              <p className="mt-1 text-sm text-muted">
+                {unreadAssignmentIds.length
+                  ? `${unreadAssignmentIds.length} new assignment${
+                      unreadAssignmentIds.length === 1 ? "" : "s"
+                    } for ${agentNameForId(viewingAgentId)}.`
+                  : `Recent assignments for ${agentNameForId(viewingAgentId)}.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={clearNotifications}
+              className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink"
+            >
+              Clear notifications
+            </button>
+          </div>
+          <ul className="mt-3 space-y-2 text-sm">
+            {assignmentAlerts.slice(0, 4).map((notice) => (
+              <li
+                key={notice.id}
+                className={`rounded-2xl bg-surface px-3 py-2 text-ink ${
+                  unreadAssignmentIds.includes(notice.id) ? "ring-1 ring-gold" : ""
+                }`}
+              >
+                {notice.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {showClientForms && (
         <section className="mb-10 rounded-3xl bg-cream p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-display text-2xl text-ink">
-                Contact Us &amp; Request a Quote
-              </h2>
+              <h2 className="font-display text-2xl text-ink">Clients</h2>
               <p className="mt-1 text-sm text-muted">
-                Expanded fillable forms for post-call intake. PDFs go to {site.email};
-                quote submits also land in this inbox.
+                Submitted trip details for the selected travel quote.
               </p>
             </div>
             <button
@@ -382,24 +617,37 @@ export default function AgentPage() {
               Close
             </button>
           </div>
-          <ClientIntakeForms
-            createInboxRequest
-            onQuoteCreated={() => {
-              void loadRequests();
-            }}
+          <AgentClientDetails
+            key={selected?.id ?? "none"}
+            request={selected}
+            saving={saving}
+            onSave={saveClientIntake}
           />
         </section>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="rounded-3xl border border-line bg-surface p-4">
-          <h2 className="px-2 font-display text-xl text-ink">Trips</h2>
+          <h2 className="px-2 font-display text-xl text-ink">Travel Quotes</h2>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search name, destination, trip ref"
+            placeholder="Search traveler or destination"
             className="mt-3 w-full rounded-xl border border-line px-3 py-2 text-sm outline-none ring-gold focus:ring-2"
           />
+          <label className="mt-3 flex items-center justify-between gap-2 text-xs font-semibold text-muted">
+            Sort travel quotes
+            <select
+              value={queueSort}
+              onChange={(event) => setQueueSort(event.target.value as QueueSort)}
+              className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink outline-none ring-gold focus:ring-2"
+              aria-label="Sort travel quotes"
+            >
+              <option value="assigned">Assigned to me first</option>
+              <option value="agent">By agent</option>
+              <option value="traveler">By traveller</option>
+            </select>
+          </label>
           <div className="mt-3 space-y-2">
             {filtered.length === 0 && (
               <p className="px-2 py-4 text-sm text-muted">No requests yet.</p>
@@ -414,12 +662,17 @@ export default function AgentPage() {
                 }}
                 className={`w-full rounded-2xl px-3 py-3 text-left transition ${
                   selectedId === request.id ? "bg-cream" : "hover:bg-cream/60"
-                }`}
+                } ${request.assignedAgentId === viewingAgentId ? "ring-1 ring-gold" : ""}`}
               >
-                <div className="font-semibold text-ink">{request.traveler.fullName}</div>
-                <div className="text-sm text-muted">{request.trip.destination}</div>
+                <div className="font-semibold text-ink">{quoteAssignmentTitle(request)}</div>
+                <div className="mt-1 text-xs text-muted">
+                  Agent: {agentNameForId(request.assignedAgentId)}
+                  {request.assignedAgentId === viewingAgentId ? " · Assigned to me" : ""}
+                </div>
                 <div className="mt-1 text-xs font-medium text-gold-deep">
-                  {request.tripRef} · {statusLabels[request.status]}
+                  {isIntakeComplete(request)
+                    ? tripStatusTitle(request.status)
+                    : "Waiting on details"}
                 </div>
               </button>
             ))}
@@ -445,7 +698,7 @@ export default function AgentPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-display text-3xl text-ink">
-                    {selected.trip.destination}
+                    {quoteAssignmentTitle(selected)}
                   </h2>
                   <p className="mt-1 text-muted">
                     {selected.traveler.fullName} · {selected.traveler.email} ·{" "}
@@ -457,9 +710,27 @@ export default function AgentPage() {
                       ? ` · ${relatedCount} other trip${relatedCount === 1 ? "" : "s"} for this traveler`
                       : ""}
                   </p>
-                </div>
-                <div className="rounded-full bg-cream px-4 py-2 text-sm font-semibold text-gold-deep">
-                  {selected.tripRef}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-ink">
+                      Assigned to: {agentNameForId(selected.assignedAgentId)}
+                    </p>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-muted">
+                      Reassign
+                      <select
+                        value={selected.assignedAgentId}
+                        disabled={saving}
+                        onChange={(event) => void updateAssignedAgent(event.target.value)}
+                        className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink outline-none ring-gold focus:ring-2"
+                        aria-label="Reassign this travel quote"
+                      >
+                        {assignableAgents.map((agent) => (
+                          <option key={agent.id} value={agent.id}>
+                            {agent.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -468,40 +739,105 @@ export default function AgentPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
-                {statusOrder.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    disabled={saving}
-                    onClick={() => updateStatus(status)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                      selected.status === status
-                        ? "bg-gold text-on-gold"
-                        : "border border-line bg-surface text-muted"
-                    }`}
-                  >
-                    {statusLabels[status]}
-                  </button>
-                ))}
+                {tripStatusSteps.map((step, index) => {
+                  const active = journeyStageIndex(selected.status) === index;
+                  return (
+                    <button
+                      key={step.title}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => updateStatus(statusForJourneyStage(index))}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        active
+                          ? "bg-gold text-on-gold"
+                          : "border border-line bg-surface text-muted"
+                      }`}
+                    >
+                      {step.title}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {paymentOrder.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    disabled={saving}
-                    onClick={() => updatePayment(status)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                      selected.paymentStatus === status
-                        ? "bg-brand text-on-brand"
-                        : "border border-line bg-surface text-muted"
-                    }`}
-                  >
-                    {paymentLabels[status]}
-                  </button>
-                ))}
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-ink">Payment status</p>
+                <div className="flex flex-wrap gap-2">
+                  {paymentOrder.map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => updatePayment(status)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        selected.paymentStatus === status
+                          ? "bg-brand text-on-brand"
+                          : "border border-line bg-surface text-muted"
+                      }`}
+                    >
+                      {paymentLabels[status]}
+                    </button>
+                  ))}
+                </div>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  aria-pressed={selected.installmentPlanActive}
+                  onClick={() => toggleInstallmentPlan()}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    selected.installmentPlanActive
+                      ? "bg-gold text-on-gold"
+                      : "border border-line bg-surface text-muted"
+                  }`}
+                >
+                  {selected.installmentPlanActive
+                    ? `${installmentPlanLabel} active`
+                    : installmentPlanLabel}
+                </button>
+                <span className="text-xs text-muted">
+                  Tracks an active plan independently of payment status.
+                </span>
+              </div>
+              {selected.paymentStatus === "paid" || selected.paymentStatus === "refunded" ? (
+                <form
+                  className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,220px)_1fr_auto] sm:items-end"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void savePaymentDetails();
+                  }}
+                >
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">
+                      {selected.paymentStatus === "paid" ? "Date paid" : "Date refunded"}
+                    </span>
+                    <input
+                      type="date"
+                      value={paymentDate}
+                      onChange={(event) => setPaymentDate(event.target.value)}
+                      className="w-full rounded-xl border border-line px-4 py-2.5 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">
+                      Confirmation / reference / notes
+                    </span>
+                    <input
+                      value={paymentNote}
+                      onChange={(event) => setPaymentNote(event.target.value)}
+                      placeholder="Confirmation number, processor, or notes"
+                      className="w-full rounded-xl border border-line px-4 py-2.5 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold"
+                  >
+                    Save payment details
+                  </button>
+                </form>
+              ) : null}
 
               <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
@@ -532,6 +868,13 @@ export default function AgentPage() {
                   <dt className="text-muted">Payment</dt>
                   <dd className="font-medium">
                     {paymentLabels[selected.paymentStatus]}
+                    {selected.installmentPlanActive
+                      ? ` · ${installmentPlanLabel} active`
+                      : ""}
+                    {paymentDateFor(selected)
+                      ? ` · ${formatDisplayDate(paymentDateFor(selected))}`
+                      : ""}
+                    {selected.paymentNote ? ` · ${selected.paymentNote}` : ""}
                   </dd>
                 </div>
               </dl>
@@ -575,9 +918,47 @@ export default function AgentPage() {
                   Save ref
                 </button>
               </form>
-              {selected.trip.preferences && (
-                <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-cream px-4 py-3 text-sm">
-                  {selected.trip.preferences}
+              {selected.trip.preferences || selected.intake?.notes ? (
+                <div className="mt-4 rounded-2xl bg-cream px-4 py-3 text-sm">
+                  <p className="font-medium text-ink">Notes</p>
+                  <p className="mt-1 whitespace-pre-wrap">
+                    {selected.intake?.notes || selected.trip.preferences}
+                  </p>
+                </div>
+              ) : null}
+              {selected.intake ? (
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  {formatIntakeAddress(selected.intake) ? (
+                    <div>
+                      <dt className="text-muted">Address</dt>
+                      <dd className="font-medium">{formatIntakeAddress(selected.intake)}</dd>
+                    </div>
+                  ) : null}
+                  {selected.intake.preferredContactMethods.length > 0 ? (
+                    <div>
+                      <dt className="text-muted">Preferred contact</dt>
+                      <dd className="font-medium">
+                        {selected.intake.preferredContactMethods.join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {selected.intake.transportationModes.length > 0 ? (
+                    <div>
+                      <dt className="text-muted">Transportation</dt>
+                      <dd className="font-medium">
+                        {selected.intake.transportationModes.join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt className="text-muted">Party</dt>
+                    <dd className="font-medium">{formatPartySummary(selected.intake)}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-dashed border-line px-4 py-3 text-sm text-muted">
+                  Waiting on the traveler to complete trip details in their dashboard.
+                  A quote cannot be produced until that form is submitted.
                 </p>
               )}
             </section>
@@ -585,18 +966,20 @@ export default function AgentPage() {
             <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-display text-2xl text-ink">Written quote</h3>
+                  <h3 className="font-display text-2xl text-ink">Generate a quote</h3>
                   <p className="mt-1 text-sm text-muted">
-                    Build a proposal the traveler can review, print, and select — or
-                    paste a Canva flyer as a simple option below.
+                    {isIntakeComplete(selected)
+                      ? "Opens a draft from this traveler’s details. Preview live, then confirm and send — the traveler reviews it like any other quote."
+                      : "Trip details are required before you can generate a quote."}
                   </p>
                 </div>
                 <button
                   type="button"
+                  disabled={!isIntakeComplete(selected)}
                   onClick={() => setComposing(true)}
-                  className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold"
+                  className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {selected.quotes.length ? "Add another quote" : "Build quote"}
+                  {selected.quotes.length ? "Add another quote" : "Generate a quote"}
                 </button>
               </div>
 
@@ -623,72 +1006,26 @@ export default function AgentPage() {
             </section>
 
             <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
-              <h3 className="font-display text-2xl text-ink">Simple option / flyer</h3>
+              <h3 className="font-display text-2xl text-ink">Canva / media flyer</h3>
               <p className="mt-1 text-sm text-muted">
-                Use this when you already designed the option in Canva.
+                {isIntakeComplete(selected)
+                  ? "Attach a Canva link, PDF, or image inside a normal quote draft. It uses the same live preview, Quality Check, and traveler quote flow as every generated quote."
+                  : "Available after the traveler submits trip details."}
               </p>
-              <form onSubmit={addOption} className="mt-5 grid gap-3">
-                <input
-                  name="title"
-                  required
-                  placeholder="Option title (e.g. Santorini Resort Package)"
-                  className="rounded-xl border border-line px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
-                />
-                <input
-                  name="estimatedPrice"
-                  placeholder="Estimated price"
-                  className="rounded-xl border border-line px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
-                />
-                <textarea
-                  name="summary"
-                  required
-                  rows={3}
-                  placeholder="Short summary of this option"
-                  className="rounded-xl border border-line px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
-                />
-                <textarea
-                  name="highlights"
-                  rows={3}
-                  placeholder={"Highlights (one per line)\nBreakfast included\n3 nights hotel"}
-                  className="rounded-xl border border-line px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
-                />
-                <input
-                  name="flyerUrl"
-                  type="url"
-                  placeholder="Canva / flyer URL (optional)"
-                  className="rounded-xl border border-line px-4 py-3 text-sm outline-none ring-gold focus:ring-2"
-                />
-                <FileUploadField
-                  tripId={selected.id}
-                  kind="flyer"
-                  label="Or upload a flyer / PDF"
-                  onUploaded={(url) => {
-                    const field = document.querySelector<HTMLInputElement>(
-                      'input[name="flyerUrl"]',
-                    );
-                    if (field) field.value = url;
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-fit rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Publish option to traveler"}
-                </button>
-              </form>
-
-              {selected.options.length > 0 && (
-                <div className="mt-6 space-y-3">
-                  {selected.options.map((option) => (
-                    <div key={option.id} className="rounded-2xl bg-cream px-4 py-3 text-sm">
-                      <div className="font-semibold text-ink">{option.title}</div>
-                      <div className="text-gold-deep">{option.estimatedPrice}</div>
-                      <p className="mt-1 text-muted">{option.summary}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                disabled={!isIntakeComplete(selected)}
+                onClick={() => setComposing(true)}
+                className="mt-5 rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Add a flyer to a quote
+              </button>
+              {selected.options.length > 0 ? (
+                <p className="mt-4 text-xs text-muted">
+                  Previously shared simple options remain available to the traveler;
+                  new media always follows the verified quote workflow above.
+                </p>
+              ) : null}
             </section>
 
             <MessageThread
@@ -703,7 +1040,7 @@ export default function AgentPage() {
 
             {notes.filter((note) => note.requestId === selected.id).length > 0 && (
               <section className="rounded-3xl border border-line bg-surface p-6">
-                <h3 className="font-display text-xl text-ink">Recent alerts</h3>
+                <h3 className="font-display text-xl text-ink">Trip notifications</h3>
                 <ul className="mt-3 space-y-2 text-sm text-muted">
                   {notes
                     .filter((note) => note.requestId === selected.id)

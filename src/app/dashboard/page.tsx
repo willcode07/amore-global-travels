@@ -2,18 +2,49 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ActivityLog } from "@/components/ActivityLog";
 import { MessageThread } from "@/components/MessageThread";
 import { QuoteDocument } from "@/components/QuoteDocument";
+import { QuoteIntakeForm } from "@/components/QuoteIntakeForm";
 import { StartTravelButton } from "@/components/RequestModalProvider";
 import { StatusTracker } from "@/components/StatusTracker";
-import { paymentLabels, tripTypeLabels } from "@/lib/agents";
+import { CompleteTripDetailsButton, StatusBadge } from "@/components/TripStatus";
+import {
+  installmentPlanLabel,
+  paymentLabels,
+  tripTypeLabels,
+} from "@/lib/agents";
+import { buildTripActivity } from "@/lib/activity";
 import { isApiBackend } from "@/lib/data/mode";
-import { journeyStageTitle } from "@/lib/journey";
-import { notificationsForTraveler } from "@/lib/notifications";
-import { lookupTraveler, updateRequest } from "@/lib/requests";
+import { proposalFromOption } from "@/lib/quotes";
+import {
+  formatDisplayDate,
+  formatIntakeAddress,
+  formatPartySummary,
+  isIntakeComplete,
+  QuoteIntakeFields,
+  quoteDefaultsFromRequest,
+  toTripIntake,
+} from "@/lib/intake";
+import { tripStatusSteps } from "@/lib/journey";
+import { logDashboardLogin, notificationsForTraveler } from "@/lib/notifications";
+import { lookupTraveler, updateRequest, addMessage } from "@/lib/requests";
 import { clearSession, readSession, writeSession } from "@/lib/session";
 import { logoutApiSession, postJson } from "@/lib/uploads";
-import { DemoNotification, TravelRequest } from "@/lib/types";
+import { DemoNotification, TravelRequest, TripType } from "@/lib/types";
+
+function nextStepCopy(trip: TravelRequest) {
+  if (trip.status === "booking_confirmed") {
+    return tripStatusSteps[2].text;
+  }
+  if (trip.selectedQuoteId || trip.selectedOptionId) {
+    return "You chose an option. Your agent will confirm the trip.";
+  }
+  if (trip.quotes.length > 0 || trip.options.length > 0) {
+    return tripStatusSteps[1].text;
+  }
+  return "";
+}
 
 function DashboardInner() {
   const searchParams = useSearchParams();
@@ -28,12 +59,42 @@ function DashboardInner() {
   const [ready, setReady] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
-  const [demoCode, setDemoCode] = useState("");
+  const [editingIntake, setEditingIntake] = useState(false);
+  const [savingIntake, setSavingIntake] = useState(false);
+  const [pendingDetailsScroll, setPendingDetailsScroll] = useState(false);
 
   const selected = useMemo(
     () => trips.find((trip) => trip.id === selectedId) ?? null,
     [trips, selectedId],
   );
+
+  const activity = useMemo(
+    () => (selected ? buildTripActivity(selected, notes) : []),
+    [selected, notes],
+  );
+
+  const intakeComplete = selected ? isIntakeComplete(selected) : false;
+  const showIntakeForm = Boolean(selected && (!intakeComplete || editingIntake));
+
+  useEffect(() => {
+    if (!pendingDetailsScroll || !showIntakeForm) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("trip-details")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      setPendingDetailsScroll(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingDetailsScroll, showIntakeForm, selectedId]);
+
+  function goToTripDetails(tripId?: string) {
+    if (tripId && tripId !== selectedId) {
+      setSelectedId(tripId);
+    }
+    setEditingIntake(true);
+    setPendingDetailsScroll(true);
+  }
 
   useEffect(() => {
     const saved = readSession();
@@ -53,7 +114,10 @@ function DashboardInner() {
             if (me.role === "traveler" && me.email && me.phone) {
               setEmail(me.email);
               setPhone(me.phone);
-              await lookup(me.email, me.phone, searchParams.get("trip"));
+              await lookup(me.email, me.phone, {
+                tripId: searchParams.get("trip"),
+                logLogin: true,
+              });
               setReady(true);
               return;
             }
@@ -65,7 +129,10 @@ function DashboardInner() {
         return;
       }
       if (emailParam && phoneParam) {
-        await lookup(emailParam, phoneParam, searchParams.get("trip"));
+        await lookup(emailParam, phoneParam, {
+          tripId: searchParams.get("trip"),
+          logLogin: true,
+        });
       }
       setReady(true);
     }
@@ -74,7 +141,11 @@ function DashboardInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  async function lookup(nextEmail = email, nextPhone = phone, tripId?: string | null) {
+  async function lookup(
+    nextEmail = email,
+    nextPhone = phone,
+    options: { tripId?: string | null; logLogin?: boolean } = {},
+  ) {
     setLoading(true);
     setError("");
     try {
@@ -85,15 +156,16 @@ function DashboardInner() {
         email: nextEmail,
         phone: nextPhone,
       });
+      if (options.logLogin) logDashboardLogin(nextEmail);
       setNotes(notificationsForTraveler(nextEmail));
-      const fromUrl = tripId
-        ? found.find((trip) => trip.id === tripId)
+      const fromUrl = options.tripId
+        ? found.find((trip) => trip.id === options.tripId)
         : undefined;
       setSelectedId(fromUrl?.id ?? found[0]?.id ?? null);
     } catch (err) {
       setTrips([]);
       setSelectedId(null);
-      setError(err instanceof Error ? err.message : "Unable to find trips.");
+      setError(err instanceof Error ? err.message : "Unable to find quotes.");
     } finally {
       setLoading(false);
     }
@@ -106,16 +178,15 @@ function DashboardInner() {
       try {
         setLoading(true);
         if (!otpSent) {
-          const data = await postJson<{ demoCode?: string }>("/api/auth/traveler/otp", {
+          await postJson<{ demoCode?: string }>("/api/auth/traveler/otp", {
             email,
             phone,
           });
           setOtpSent(true);
-          setDemoCode(data.demoCode ?? "");
           return;
         }
         await postJson("/api/auth/traveler/verify", { email, phone, code: otpCode });
-        await lookup();
+        await lookup(email, phone, { logLogin: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to sign in.");
       } finally {
@@ -123,12 +194,12 @@ function DashboardInner() {
       }
       return;
     }
-    lookup();
+    lookup(email, phone, { logLogin: true });
   }
 
   function refresh() {
     if (!email || !phone) return;
-    lookup();
+    lookup(email, phone);
   }
 
   async function selectQuote(quoteId: string) {
@@ -157,37 +228,81 @@ function DashboardInner() {
     }
   }
 
+  async function saveIntake(data: QuoteIntakeFields, tripType: TripType) {
+    if (!selected) return;
+    const firstCompletion = !selected.intake?.completedAt;
+    setSavingIntake(true);
+    setError("");
+    try {
+      const updated = await updateRequest(selected.id, {
+        intake: toTripIntake(data, tripType, selected.intake?.completedAt),
+      });
+      if (firstCompletion) {
+        await addMessage(selected.id, {
+          sender: "traveler",
+          senderName: updated.traveler.fullName,
+          body: "hi! my Travel details form has been submitted. let me know if you have any other questions before organizing my quote.",
+        });
+      }
+      setEditingIntake(false);
+      refresh();
+    } catch (err) {
+      throw err instanceof Error ? err : new Error("Unable to save trip details.");
+    } finally {
+      setSavingIntake(false);
+    }
+  }
+
+  const firstName = trips[0]?.traveler.fullName.split(" ")[0] ?? "";
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-16">
-      <div className="mb-8 max-w-2xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-          Traveler hub
-        </p>
-        <h1 className="mt-2 font-display text-4xl text-ink md:text-5xl">
-          Your travel dashboard
-        </h1>
-        <p className="mt-3 text-muted">
-          Every quote under your email and phone, in one place. When your agent
-          sends a message or a proposal, we email you and keep the history here.
-        </p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-4xl text-ink md:text-5xl">Your Dashboard</h1>
+          <p className="mt-3 text-muted">
+            Every trip in one place — see when your quote is ready, message your
+            agent, and keep the history.
+          </p>
+        </div>
+        {trips.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <StartTravelButton className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold">
+              Plan another trip
+            </StartTravelButton>
+            <button
+              type="button"
+              onClick={async () => {
+                clearSession();
+                if (isApiBackend()) await logoutApiSession();
+                setTrips([]);
+                setSelectedId(null);
+                setError("");
+                setOtpSent(false);
+                setOtpCode("");
+              }}
+              className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
+            >
+              Sign out
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {!ready && (
-        <p className="rounded-2xl bg-cream px-4 py-5 text-sm text-muted">
-          Opening your trips...
+        <p className="rounded-2xl border border-line bg-surface px-4 py-5 text-sm text-muted">
+          Opening your quotes…
         </p>
       )}
 
       {ready && trips.length === 0 && (
         <form
           onSubmit={handleLogin}
-          className="max-w-xl space-y-4 rounded-3xl border border-line bg-surface p-6 md:p-8"
+          className="max-w-md space-y-4 rounded-3xl border border-line bg-surface p-6 md:p-8"
         >
-          <h2 className="font-display text-2xl text-ink">Open your trips</h2>
+          <h2 className="font-display text-2xl text-ink">Sign in</h2>
           <p className="text-sm text-muted">
-            {isApiBackend()
-              ? "Use the email and phone from your request. We’ll email a one-time code — or show a demo code if mail isn’t configured yet."
-              : "Use the email and phone number from your request. That pairing is your login — no access code to keep track of."}
+            Use the email and phone from your quote request.
           </p>
           <label className="block text-sm">
             <span className="mb-1.5 block font-medium">Email</span>
@@ -195,6 +310,7 @@ function DashboardInner() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
               className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
               required
             />
@@ -204,6 +320,7 @@ function DashboardInner() {
             <input
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
+              autoComplete="tel"
               className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
               required
             />
@@ -215,15 +332,11 @@ function DashboardInner() {
                 value={otpCode}
                 onChange={(event) => setOtpCode(event.target.value)}
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
                 required
               />
             </label>
-          ) : null}
-          {demoCode ? (
-            <p className="rounded-2xl bg-cream px-4 py-3 text-sm text-ink">
-              Demo code (Resend not configured): <strong>{demoCode}</strong>
-            </p>
           ) : null}
           {error && <p className="text-sm text-red-700">{error}</p>}
           <button
@@ -232,7 +345,7 @@ function DashboardInner() {
             className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
           >
             {loading
-              ? "Please wait..."
+              ? "Please wait…"
               : isApiBackend() && !otpSent
                 ? "Send code"
                 : "Open dashboard"}
@@ -242,149 +355,150 @@ function DashboardInner() {
 
       {ready && trips.length > 0 && (
         <div className="space-y-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">
-              Signed in as {trips[0].traveler.fullName} · {trips.length} trip
-              {trips.length === 1 ? "" : "s"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <StartTravelButton className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold">
-                Plan another trip
-              </StartTravelButton>
-              <button
-                type="button"
-                onClick={async () => {
-                  clearSession();
-                  if (isApiBackend()) await logoutApiSession();
-                  setTrips([]);
-                  setSelectedId(null);
-                  setError("");
-                  setOtpSent(false);
-                  setOtpCode("");
-                  setDemoCode("");
-                }}
-                className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
-              >
-                Sign out
-              </button>
+          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          <div>
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-2xl text-ink">Your Quotes</h2>
+              <p className="text-sm text-muted">
+                Hi, {firstName}
+                {trips.length > 1
+                  ? ` · ${trips.length} quote${trips.length === 1 ? "" : "s"}`
+                  : ""}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {trips.map((trip) => {
+                const active = selectedId === trip.id;
+                const detailsNeeded = !isIntakeComplete(trip);
+                return (
+                  <article
+                    key={trip.id}
+                    className={`rounded-2xl border p-5 text-left transition ${
+                      active
+                        ? "border-gold bg-cream shadow-[var(--shadow-soft)]"
+                        : "border-line bg-surface hover:border-gold/50"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(trip.id);
+                        setEditingIntake(false);
+                      }}
+                      className="w-full text-left"
+                    >
+                      <div className="font-display text-xl text-ink">{trip.trip.destination}</div>
+                      <p className="mt-1 text-sm text-muted">{trip.trip.travelWindow}</p>
+                      <div className="mt-4">
+                        <StatusBadge status={trip.status} />
+                      </div>
+                    </button>
+                    <div className="mt-4">
+                      <CompleteTripDetailsButton
+                        size="sm"
+                        complete={!detailsNeeded}
+                        onClick={() => goToTripDetails(trip.id)}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.map((trip) => (
-              <button
-                key={trip.id}
-                type="button"
-                onClick={() => setSelectedId(trip.id)}
-                className={`rounded-3xl border p-5 text-left transition ${
-                  selectedId === trip.id
-                    ? "border-gold bg-cream"
-                    : "border-line bg-surface hover:border-gold/50"
-                }`}
-              >
-                <div className="font-display text-xl text-ink">{trip.trip.destination}</div>
-                <p className="mt-1 text-sm text-muted">{trip.trip.travelWindow}</p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                  {journeyStageTitle(trip.status)}
-                </p>
-              </button>
-            ))}
-          </div>
-
-          {notes.length > 0 && (
-            <section className="rounded-3xl border border-line bg-surface p-5 no-print">
-              <h3 className="font-display text-xl text-ink">Email alerts</h3>
-              <p className="mt-1 text-sm text-muted">
-                Demo mode stores what would be emailed. Every agent message sends an
-                alert.
-              </p>
-              <ul className="mt-4 space-y-3">
-                {notes.slice(0, 4).map((note) => (
-                  <li key={note.id} className="rounded-2xl bg-cream px-4 py-3 text-sm">
-                    <div className="font-medium text-ink">{note.subject}</div>
-                    <p className="mt-1 whitespace-pre-wrap text-muted">
-                      {note.text.slice(0, 220)}
-                      {note.text.length > 220 ? "…" : ""}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           {selected && (
-            <div className="space-y-8">
-              <div className="rounded-3xl border border-line bg-surface p-6 md:p-8">
+            <div className="space-y-6">
+              <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <h2 className="font-display text-3xl text-ink">
                       {selected.trip.destination}
                     </h2>
-                    <p className="mt-1 text-muted">
-                      {selected.traveler.fullName} · {selected.trip.travelWindow}
+                    <p className="mt-1 text-sm text-muted">
+                      {selected.trip.travelWindow}
+                      {selected.trip.travelers
+                        ? ` · ${selected.trip.travelers} traveler${selected.trip.travelers === 1 ? "" : "s"}`
+                        : ""}
                     </p>
                   </div>
-                  <div className="rounded-full bg-cream px-4 py-2 text-sm font-semibold text-gold-deep">
-                    {journeyStageTitle(selected.status)}
-                  </div>
+                  <StatusBadge status={selected.status} />
                 </div>
                 <div className="mt-8">
                   <StatusTracker status={selected.status} />
                 </div>
-                {selected.status === "booking_confirmed" && (
-                  <p className="mt-6 rounded-2xl bg-cream px-4 py-3 text-sm text-ink">
-                    Booking confirmed. Official vendor confirmations are sent by email.
+                {nextStepCopy(selected) ? (
+                  <p className="mt-6 rounded-2xl bg-cream/80 px-4 py-3 text-sm text-ink">
+                    {nextStepCopy(selected)}
                   </p>
-                )}
-              </div>
+                ) : null}
+                <div className="mt-4">
+                  <CompleteTripDetailsButton
+                    complete={intakeComplete}
+                    onClick={() => goToTripDetails(selected.id)}
+                  />
+                </div>
+              </section>
 
-              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
-                  <h3 className="font-display text-2xl text-ink">Your request</h3>
-                  <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-                    <Item label="Travelers" value={String(selected.trip.travelers)} />
-                    <Item label="Budget" value={selected.trip.budget || "—"} />
-                    <Item
-                      label="Trip type"
-                      value={tripTypeLabels[selected.trip.tripType] ?? selected.trip.tripType}
-                    />
-                    <Item
-                      label="Departure city"
-                      value={selected.trip.departureCity || "—"}
-                    />
-                    <Item label="Preferred agent" value={selected.trip.preferredAgent || "—"} />
-                    <Item
-                      label="Payment"
-                      value={paymentLabels[selected.paymentStatus] ?? selected.paymentStatus}
-                    />
-                    <Item
-                      label="Trip style"
-                      value={selected.trip.tripStyle.join(", ") || "—"}
-                    />
-                  </dl>
-                  {selected.trip.preferences && (
-                    <p className="mt-5 rounded-2xl bg-cream px-4 py-3 text-sm text-ink">
-                      {selected.trip.preferences}
-                    </p>
-                  )}
+              {showIntakeForm ? (
+                <section
+                  id="trip-details"
+                  className="scroll-mt-28 rounded-3xl border-2 border-gold bg-surface p-6 md:p-8"
+                >
+                  <QuoteIntakeForm
+                    key={selected.id}
+                    framed={false}
+                    defaults={quoteDefaultsFromRequest(selected)}
+                    title={intakeComplete ? "Update trip details" : "Trip details"}
+                    description={
+                      intakeComplete
+                        ? "Change anything your agent should know."
+                        : undefined
+                    }
+                    submitLabel="Save trip details"
+                    saving={savingIntake}
+                    onSubmit={saveIntake}
+                  />
+                  {editingIntake && intakeComplete ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingIntake(false)}
+                      className="mt-4 text-sm font-semibold text-muted"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
                 </section>
+              ) : null}
 
-                <MessageThread
-                  messages={selected.messages}
-                  sender="traveler"
-                  senderName={selected.traveler.fullName}
-                  requestId={selected.id}
-                  onSent={() => refresh()}
-                />
-              </div>
+              <MessageThread
+                messages={selected.messages}
+                sender="traveler"
+                senderName={selected.traveler.fullName}
+                requestId={selected.id}
+                onSent={() => refresh()}
+              />
 
-              <section className="space-y-6">
+              <section className="space-y-5">
                 <div className="flex flex-wrap items-end justify-between gap-3 no-print">
                   <div>
-                    <h3 className="font-display text-2xl text-ink">Your quotes</h3>
+                    <h3 className="font-display text-2xl text-ink">Review your options</h3>
                     <p className="mt-1 text-sm text-muted">
-                      Review the proposal your agent prepared, then choose the one you
-                      want to move forward with.
+                      {selected.quotes.length || selected.options.length ? (
+                        "Choose the option you want. Nothing is booked until your agent confirms."
+                      ) : intakeComplete ? (
+                        "Your agent will post options here when they’re ready."
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => goToTripDetails(selected.id)}
+                            className="font-semibold text-gold-deep underline-offset-2 hover:underline"
+                          >
+                            Complete your trip details
+                          </button>{" "}
+                          first — then your agent can write a quote.
+                        </>
+                      )}
                     </p>
                   </div>
                   <button
@@ -392,15 +506,24 @@ function DashboardInner() {
                     onClick={() => refresh()}
                     className="text-sm font-semibold text-gold-deep"
                   >
-                    Refresh
+                    Check for updates
                   </button>
                 </div>
 
                 {selected.quotes.length === 0 && selected.options.length === 0 ? (
-                  <p className="rounded-2xl bg-cream px-4 py-5 text-sm text-muted">
-                    No quotes yet. Your agent is researching based on your request.
-                    You&apos;ll get an email when a proposal is ready.
-                  </p>
+                  intakeComplete ? (
+                    <p className="rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted">
+                      No options yet. We’ll email you as soon as a quote is ready.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => goToTripDetails(selected.id)}
+                      className="w-full rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted hover:border-gold/50"
+                    >
+                      Complete your trip details above so your agent can prepare a quote.
+                    </button>
+                  )
                 ) : null}
 
                 {selected.quotes.map((quote) => {
@@ -413,20 +536,20 @@ function DashboardInner() {
                           type="button"
                           disabled={chosen || selecting === quote.id}
                           onClick={() => selectQuote(quote.id)}
-                          className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-on-brand disabled:opacity-60"
+                          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
                         >
                           {chosen
                             ? "Selected"
                             : selecting === quote.id
-                              ? "Saving..."
-                              : "This is the one I want"}
+                              ? "Saving…"
+                              : "Choose this option"}
                         </button>
                         <button
                           type="button"
                           onClick={() => window.print()}
                           className="rounded-full border border-line px-5 py-3 text-sm font-semibold"
                         >
-                          Print / save as PDF
+                          Print / save PDF
                         </button>
                         {quote.flyerUrl ? (
                           <a
@@ -453,57 +576,111 @@ function DashboardInner() {
                   );
                 })}
 
-                {selected.options.length > 0 && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {selected.options.map((option) => {
-                      const chosen = selected.selectedOptionId === option.id;
-                      return (
-                        <article
-                          key={option.id}
-                          className={`rounded-3xl border p-5 ${
-                            chosen ? "border-gold bg-cream" : "border-line bg-surface"
-                          }`}
+                {selected.options.map((option) => {
+                  const chosen = selected.selectedOptionId === option.id;
+                  const quote = proposalFromOption(selected, option);
+                  return (
+                    <div key={option.id} className="space-y-4">
+                      <QuoteDocument quote={quote} request={selected} />
+                      <div className="flex flex-wrap gap-3 no-print">
+                        <button
+                          type="button"
+                          disabled={chosen || selecting === option.id}
+                          onClick={() => selectOption(option.id)}
+                          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
                         >
-                          <h4 className="font-display text-xl text-ink">{option.title}</h4>
-                          <p className="mt-1 text-sm font-semibold text-gold-deep">
-                            {option.estimatedPrice || "Price on request"}
-                          </p>
-                          <p className="mt-3 text-sm text-muted">{option.summary}</p>
-                          {option.highlights.length > 0 && (
-                            <ul className="mt-4 space-y-1 text-sm text-ink">
-                              {option.highlights.map((highlight) => (
-                                <li key={highlight}>• {highlight}</li>
-                              ))}
-                            </ul>
-                          )}
-                          {option.flyerUrl && (
-                            <a
-                              href={option.flyerUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-4 inline-block text-sm font-semibold text-gold-deep underline"
-                            >
-                              View flyer
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            disabled={chosen || selecting === option.id}
-                            onClick={() => selectOption(option.id)}
-                            className="mt-5 w-full rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand disabled:opacity-60"
+                          {chosen
+                            ? "Selected"
+                            : selecting === option.id
+                              ? "Saving…"
+                              : "Choose this option"}
+                        </button>
+                        {option.flyerUrl ? (
+                          <a
+                            href={option.flyerUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full border border-line px-5 py-3 text-sm font-semibold"
                           >
-                            {chosen
-                              ? "Selected"
-                              : selecting === option.id
-                                ? "Saving..."
-                                : "Select this option"}
-                          </button>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
+                            Open flyer
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </section>
+
+              <details className="rounded-3xl border border-line bg-surface px-6 py-4 md:px-8">
+                <summary className="cursor-pointer font-display text-xl text-ink">
+                  Request details
+                </summary>
+                <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+                  <Item
+                    label="Trip type"
+                    value={tripTypeLabels[selected.trip.tripType] ?? selected.trip.tripType}
+                  />
+                  <Item label="Travelers" value={String(selected.trip.travelers)} />
+                  {selected.trip.departureCity ? (
+                    <Item label="Departure city" value={selected.trip.departureCity} />
+                  ) : null}
+                  {selected.trip.budget ? (
+                    <Item label="Budget" value={selected.trip.budget} />
+                  ) : null}
+                  {selected.trip.preferredAgent ? (
+                    <Item label="Preferred agent" value={selected.trip.preferredAgent} />
+                  ) : null}
+                  {selected.paymentStatus !== "not_requested" ||
+                  selected.installmentPlanActive ? (
+                    <Item
+                      label="Payment"
+                      value={[
+                        paymentLabels[selected.paymentStatus] ?? selected.paymentStatus,
+                        selected.installmentPlanActive
+                          ? `${installmentPlanLabel} active`
+                          : "",
+                        selected.paymentStatus === "paid" && selected.paidAt
+                          ? formatDisplayDate(selected.paidAt)
+                          : "",
+                        selected.paymentStatus === "refunded" && selected.refundedAt
+                          ? formatDisplayDate(selected.refundedAt)
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  ) : null}
+                </dl>
+                {selected.intake ? <IntakeSummary request={selected} /> : null}
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-ink">Notes</h4>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted">
+                    {(selected.intake?.notes || selected.trip.preferences).trim() ||
+                      "No notes yet."}
+                  </p>
+                </div>
+                {intakeComplete && !showIntakeForm ? (
+                  <button
+                    type="button"
+                    onClick={() => goToTripDetails(selected.id)}
+                    className="mt-4 text-sm font-semibold text-gold-deep"
+                  >
+                    Update trip details
+                  </button>
+                ) : null}
+              </details>
+
+              <details className="rounded-3xl border border-line bg-surface px-6 py-4 md:px-8">
+                <summary className="cursor-pointer font-display text-xl text-ink">
+                  Activity
+                </summary>
+                <p className="mt-2 text-sm text-muted">
+                  Sign-ins and emails for this trip.
+                </p>
+                <div className="mt-2">
+                  <ActivityLog items={activity} embedded />
+                </div>
+              </details>
             </div>
           )}
         </div>
@@ -521,9 +698,45 @@ function Item({ label, value }: { label: string; value: string }) {
   );
 }
 
+function IntakeSummary({ request }: { request: TravelRequest }) {
+  const intake = request.intake;
+  if (!intake) return null;
+  const address = formatIntakeAddress(intake);
+  return (
+    <dl className="mt-5 grid gap-4 border-t border-line pt-5 text-sm sm:grid-cols-2">
+      {address ? <Item label="Address" value={address} /> : null}
+      {intake.preferredContactMethods.length > 0 ? (
+        <Item label="Preferred contact" value={intake.preferredContactMethods.join(", ")} />
+      ) : null}
+      {intake.transportationModes.length > 0 ? (
+        <Item label="Transportation" value={intake.transportationModes.join(", ")} />
+      ) : null}
+      {intake.accessibilityNeeded ? (
+        <Item
+          label="Accessibility"
+          value={
+            intake.accessibilityNotes
+              ? `${intake.accessibilityNeeded} — ${intake.accessibilityNotes}`
+              : intake.accessibilityNeeded
+          }
+        />
+      ) : null}
+      <Item label="Party" value={formatPartySummary(intake)} />
+      {intake.pets || intake.supportAnimal ? (
+        <Item
+          label="Animals"
+          value={[intake.pets ? "Pets" : "", intake.supportAnimal ? "Support animal" : ""]
+            .filter(Boolean)
+            .join(", ")}
+        />
+      ) : null}
+    </dl>
+  );
+}
+
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="px-5 py-16 text-muted">Loading dashboard...</div>}>
+    <Suspense fallback={<div className="px-5 py-16 text-muted">Loading dashboard…</div>}>
       <DashboardInner />
     </Suspense>
   );

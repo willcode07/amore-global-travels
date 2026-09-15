@@ -1,5 +1,11 @@
-import { furthestStatus } from "@/lib/agents";
+import {
+  assignedAgentIdForPreference,
+  furthestStatus,
+  normalizeAssignedAgentId,
+} from "@/lib/agents";
 import { createId, createTripRef } from "@/lib/ids";
+import { formatTravelWindow, travelerCountFromIntake } from "@/lib/intake";
+import { evaluateQuoteQuality } from "@/lib/quote-quality";
 import {
   MessageSender,
   PaymentStatus,
@@ -7,6 +13,7 @@ import {
   TravelOption,
   TravelProposal,
   TravelRequest,
+  TripIntake,
   TripType,
 } from "@/lib/types";
 
@@ -24,12 +31,18 @@ export type CreateRequestInput = {
   tripStyle?: string[];
   tripType?: TripType;
   persistSession?: boolean;
+  intake?: TripIntake;
 };
 
 export type UpdateRequestBody = {
   status?: RequestStatus;
   paymentStatus?: PaymentStatus;
+  installmentPlanActive?: boolean;
+  assignedAgentId?: string;
   paymentNote?: string;
+  paidAt?: string;
+  refundedAt?: string;
+  intake?: TripIntake;
   option?: {
     title?: string;
     summary?: string;
@@ -50,6 +63,14 @@ export type AddMessageInput = {
   body: string;
 };
 
+function travelerFirstName(request: TravelRequest) {
+  return (
+    request.intake?.firstName.trim() ||
+    request.traveler.fullName.trim().split(/\s+/)[0] ||
+    "there"
+  );
+}
+
 export function applyCreate(input: CreateRequestInput): TravelRequest {
   const now = new Date().toISOString();
   const fullName = String(input.fullName).trim() || "Demo Traveler";
@@ -64,6 +85,10 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
     status: "submitted",
     progressStatus: "submitted",
     paymentStatus: "not_requested",
+    installmentPlanActive: false,
+    assignedAgentId: assignedAgentIdForPreference(
+      input.intake?.preferredAgent || input.preferredAgent,
+    ),
     paymentNote: "",
     clienteaseRef: null,
     createdAt: now,
@@ -84,6 +109,7 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
       preferences: String(input.preferences ?? "").trim(),
       preferredAgent: String(input.preferredAgent ?? "").trim(),
     },
+    intake: input.intake,
     options: [],
     quotes: [],
     messages: [
@@ -91,7 +117,7 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
         id: createId("msg"),
         sender: "agent",
         senderName: "Amore Global",
-        body: "Thanks for submitting your travel request. An agent will review your details and follow up here with options and a written quote.",
+        body: "Thanks for submitting your travel request. Complete your trip details in this dashboard so your agent can write a quote.",
         createdAt: now,
       },
     ],
@@ -111,16 +137,75 @@ export function applyUpdate(
       nextStatus,
       existing.progressStatus ?? existing.status,
     );
+    if (
+      nextStatus === "booking_confirmed" &&
+      existing.status !== "booking_confirmed"
+    ) {
+      updated.messages = [
+        ...updated.messages,
+        {
+          id: createId("msg"),
+          sender: "agent",
+          senderName: "Amore Global Agent",
+          body: `Wonderful news, ${travelerFirstName(updated)}! Your trip has been confirmed. We’ll send your travel details and next steps as they are finalized.`,
+          createdAt: updated.updatedAt,
+        },
+      ];
+    }
   }
 
   if (body.paymentStatus) {
     updated.paymentStatus = body.paymentStatus;
   }
+  if (typeof body.installmentPlanActive === "boolean") {
+    updated.installmentPlanActive = body.installmentPlanActive;
+  }
+  if (typeof body.assignedAgentId === "string") {
+    updated.assignedAgentId = normalizeAssignedAgentId(body.assignedAgentId);
+  }
   if (typeof body.paymentNote === "string") {
     updated.paymentNote = body.paymentNote;
   }
+  if (typeof body.paidAt === "string") {
+    updated.paidAt = body.paidAt.trim() || undefined;
+  }
+  if (typeof body.refundedAt === "string") {
+    updated.refundedAt = body.refundedAt.trim() || undefined;
+  }
   if (body.clienteaseRef !== undefined) {
     updated.clienteaseRef = body.clienteaseRef;
+  }
+
+  if (body.intake) {
+    const intake = body.intake;
+    const travelers = travelerCountFromIntake(intake);
+    const fullName =
+      [intake.firstName, intake.lastName].filter(Boolean).join(" ").trim();
+    updated.intake = intake;
+    updated.traveler = {
+      fullName: fullName || existing.traveler.fullName,
+      email: intake.email.trim() || existing.traveler.email,
+      phone: intake.phone.trim() || existing.traveler.phone,
+    };
+    updated.trip = {
+      ...updated.trip,
+      destination: intake.destination.trim() || updated.trip.destination,
+      travelWindow: formatTravelWindow(
+        intake.departureDate,
+        intake.returnDate,
+        updated.trip.travelWindow,
+      ),
+      travelers: travelers || updated.trip.travelers,
+      tripType: intake.tripType || updated.trip.tripType,
+      preferredAgent: intake.preferredAgent.trim() || updated.trip.preferredAgent,
+      preferences: intake.notes.trim(),
+    };
+    if (
+      !body.assignedAgentId &&
+      (!existing.assignedAgentId || existing.assignedAgentId === "shonya")
+    ) {
+      updated.assignedAgentId = assignedAgentIdForPreference(intake.preferredAgent);
+    }
   }
 
   if (body.option) {
@@ -151,6 +236,14 @@ export function applyUpdate(
   }
 
   if (body.quote) {
+    const quality = evaluateQuoteQuality(body.quote);
+    if (!quality.canPublish) {
+      throw new Error(
+        `Quote cannot be published until ${quality.errors.length} Quality Check issue${
+          quality.errors.length === 1 ? "" : "s"
+        } ${quality.errors.length === 1 ? "is" : "are"} resolved.`,
+      );
+    }
     const quote = { ...body.quote, id: body.quote.id || createId("quote") };
     const existingIndex = updated.quotes.findIndex((item) => item.id === quote.id);
     if (existingIndex >= 0) {
@@ -159,6 +252,16 @@ export function applyUpdate(
       );
     } else {
       updated.quotes = [...updated.quotes, quote];
+      updated.messages = [
+        ...updated.messages,
+        {
+          id: createId("msg"),
+          sender: "agent",
+          senderName: "Amore Global Agent",
+          body: `Hi ${travelerFirstName(updated)}! Your quote is ready to review in your dashboard. Please let me know if you have any questions or would like any changes.`,
+          createdAt: new Date().toISOString(),
+        },
+      ];
     }
     if (updated.status === "submitted" || updated.status === "under_review") {
       updated.status = "options_ready";
@@ -170,21 +273,55 @@ export function applyUpdate(
   }
 
   if (body.selectedOptionId) {
-    updated.selectedOptionId = String(body.selectedOptionId);
+    const selectedOptionId = String(body.selectedOptionId);
+    const selectedOption = updated.options.find((option) => option.id === selectedOptionId);
+    const selectionChanged = selectedOptionId !== existing.selectedOptionId;
+    updated.selectedOptionId = selectedOptionId;
     updated.status = "option_selected";
     updated.progressStatus = furthestStatus(
       "option_selected",
       updated.progressStatus ?? existing.progressStatus ?? existing.status,
     );
+    if (selectionChanged) {
+      updated.messages = [
+        ...updated.messages,
+        {
+          id: createId("msg"),
+          sender: "traveler",
+          senderName: updated.traveler.fullName,
+          body: `Hi! I selected ${
+            selectedOption?.title || "this travel option"
+          }. I’m ready to move forward and would love to know the next steps.`,
+          createdAt: updated.updatedAt,
+        },
+      ];
+    }
   }
 
   if (body.selectedQuoteId) {
-    updated.selectedQuoteId = String(body.selectedQuoteId);
+    const selectedQuoteId = String(body.selectedQuoteId);
+    const selectedQuote = updated.quotes.find((quote) => quote.id === selectedQuoteId);
+    const selectionChanged = selectedQuoteId !== existing.selectedQuoteId;
+    updated.selectedQuoteId = selectedQuoteId;
     updated.status = "option_selected";
     updated.progressStatus = furthestStatus(
       "option_selected",
       updated.progressStatus ?? existing.progressStatus ?? existing.status,
     );
+    if (selectionChanged) {
+      updated.messages = [
+        ...updated.messages,
+        {
+          id: createId("msg"),
+          sender: "traveler",
+          senderName: updated.traveler.fullName,
+          body: `Hi! I selected ${
+            selectedQuote?.occasionTitle || "this quote"
+          }. I’m ready to move forward and would love to know the next steps.`,
+          createdAt: updated.updatedAt,
+        },
+      ];
+    }
   }
 
   return updated;

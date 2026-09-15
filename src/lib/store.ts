@@ -1,8 +1,11 @@
 import { createId } from "@/lib/ids";
+import { assignedAgentIdForPreference, normalizeAssignedAgentId } from "@/lib/agents";
+import { persistentSampleRequests } from "@/lib/sample-requests";
 import {
   PaymentStatus,
   TravelProposal,
   TravelRequest,
+  TripIntake,
   TripType,
 } from "@/lib/types";
 import { emailsMatch, phonesMatch } from "@/lib/session";
@@ -20,7 +23,6 @@ const tripTypes: TripType[] = [
 
 const paymentStatuses: PaymentStatus[] = [
   "not_requested",
-  "deposit_due",
   "paid",
   "refunded",
 ];
@@ -33,10 +35,44 @@ function asTripType(value: unknown): TripType {
   return tripTypes.includes(value as TripType) ? (value as TripType) : "not_sure";
 }
 
+function isLegacyInstallmentPlanStatus(value: unknown) {
+  return value === "deposit_due" || value === "installment_plan";
+}
+
 function asPaymentStatus(value: unknown): PaymentStatus {
+  if (isLegacyInstallmentPlanStatus(value)) return "not_requested";
   return paymentStatuses.includes(value as PaymentStatus)
     ? (value as PaymentStatus)
     : "not_requested";
+}
+
+function asBoolean(value: unknown) {
+  return value === true || value === "true";
+}
+
+function asIsoDate(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function normalizeIntake(raw: TravelRequest["intake"]): TripIntake | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  return {
+    ...raw,
+    preferredContactMethods: Array.isArray(raw.preferredContactMethods)
+      ? raw.preferredContactMethods.map(String)
+      : [],
+    transportationModes: Array.isArray(raw.transportationModes)
+      ? raw.transportationModes.map(String)
+      : [],
+    pets: Boolean(raw.pets),
+    supportAnimal: Boolean(raw.supportAnimal),
+    notes: String(raw.notes ?? ""),
+    adultDobs: Array.isArray(raw.adultDobs) ? raw.adultDobs.map(String) : [],
+    childDobs: Array.isArray(raw.childDobs) ? raw.childDobs.map(String) : [],
+    tripType: asTripType(raw.tripType),
+  };
 }
 
 function normalizeRequest(raw: TravelRequest): TravelRequest {
@@ -45,11 +81,20 @@ function normalizeRequest(raw: TravelRequest): TravelRequest {
     ...raw,
     tripRef,
     paymentStatus: asPaymentStatus(raw.paymentStatus),
+    installmentPlanActive:
+      asBoolean(raw.installmentPlanActive) ||
+      isLegacyInstallmentPlanStatus(raw.paymentStatus),
+    assignedAgentId: raw.assignedAgentId
+      ? normalizeAssignedAgentId(raw.assignedAgentId)
+      : assignedAgentIdForPreference(raw.trip?.preferredAgent),
     paymentNote: raw.paymentNote ?? "",
+    paidAt: asIsoDate(raw.paidAt),
+    refundedAt: asIsoDate(raw.refundedAt),
     quotes: Array.isArray(raw.quotes) ? raw.quotes : [],
     options: Array.isArray(raw.options) ? raw.options : [],
     messages: Array.isArray(raw.messages) ? raw.messages : [],
     clienteaseRef: raw.clienteaseRef ?? null,
+    intake: normalizeIntake(raw.intake),
     trip: {
       ...raw.trip,
       tripType: asTripType(raw.trip?.tripType),
@@ -58,13 +103,45 @@ function normalizeRequest(raw: TravelRequest): TravelRequest {
   };
 }
 
+function addPersistentSampleRequests(requests: TravelRequest[]) {
+  const existingIds = new Set(requests.map((request) => request.id));
+  const missing = persistentSampleRequests().filter(
+    (request) => !existingIds.has(request.id),
+  );
+  return {
+    requests: missing.length ? [...requests, ...missing] : requests,
+    added: missing.length > 0,
+  };
+}
+
 export function readRequests(): TravelRequest[] {
   if (!canUseStorage()) return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      const samples = persistentSampleRequests().map(normalizeRequest);
+      writeRequests(samples);
+      return samples;
+    }
     const parsed = JSON.parse(raw) as { requests?: TravelRequest[] };
-    return (parsed.requests ?? []).map(normalizeRequest);
+    const seeded = addPersistentSampleRequests(parsed.requests ?? []);
+    const rawRequests = seeded.requests;
+    const requests = rawRequests.map(normalizeRequest);
+    const needsNormalization = rawRequests.some(
+      (request) =>
+        isLegacyInstallmentPlanStatus(request.paymentStatus) ||
+        typeof request.installmentPlanActive !== "boolean" ||
+        typeof request.assignedAgentId !== "string" ||
+        normalizeAssignedAgentId(request.assignedAgentId) !== request.assignedAgentId,
+    );
+    if (seeded.added || needsNormalization) {
+      try {
+        writeRequests(requests);
+      } catch {
+        // Keep the normalized records available if local storage cannot be rewritten.
+      }
+    }
+    return requests;
   } catch {
     return [];
   }
@@ -105,6 +182,7 @@ export function cloneQuote(quote: TravelProposal): TravelProposal {
     ...quote,
     id: createId("quote"),
     createdAt: new Date().toISOString(),
+    researchEvidence: quote.researchEvidence?.map((item) => ({ ...item })),
     flightTiers: quote.flightTiers.map((tier) => ({ ...tier, id: createId("tier") })),
     protectionTiers: quote.protectionTiers.map((tier) => ({
       ...tier,

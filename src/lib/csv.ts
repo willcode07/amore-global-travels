@@ -1,4 +1,9 @@
-import { paymentLabels, statusLabels, tripTypeLabels } from "@/lib/agents";
+import {
+  installmentPlanLabel,
+  paymentLabels,
+  statusLabels,
+  tripTypeLabels,
+} from "@/lib/agents";
 import { TravelRequest } from "@/lib/types";
 
 function csvCell(value: string | number | undefined) {
@@ -14,6 +19,9 @@ export function requestsToCsv(requests: TravelRequest[]) {
     "Updated",
     "Status",
     "Payment status",
+    installmentPlanLabel,
+    "Payment date",
+    "Payment note",
     "Traveler",
     "Email",
     "Phone",
@@ -34,6 +42,11 @@ export function requestsToCsv(requests: TravelRequest[]) {
     request.updatedAt,
     statusLabels[request.status] ?? request.status,
     paymentLabels[request.paymentStatus] ?? request.paymentStatus,
+    request.installmentPlanActive ? "Active" : "",
+    request.paymentStatus === "refunded"
+      ? request.refundedAt ?? ""
+      : request.paidAt ?? "",
+    request.paymentNote,
     request.traveler.fullName,
     request.traveler.email,
     request.traveler.phone,
@@ -68,6 +81,9 @@ export function confirmedTripsToCsv(requests: TravelRequest[]) {
     "Selected quote",
     "Quote total",
     "Payment status",
+    installmentPlanLabel,
+    "Payment date",
+    "Payment note",
     "Confirmed at",
   ];
   const rows = confirmed.map((request) => {
@@ -87,6 +103,11 @@ export function confirmedTripsToCsv(requests: TravelRequest[]) {
       quote?.occasionTitle ?? "",
       quote?.investmentTotal ?? "",
       paymentLabels[request.paymentStatus] ?? request.paymentStatus,
+      request.installmentPlanActive ? "Active" : "",
+      request.paymentStatus === "refunded"
+        ? request.refundedAt ?? ""
+        : request.paidAt ?? "",
+      request.paymentNote,
       request.updatedAt,
     ];
   });

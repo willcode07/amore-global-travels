@@ -15,6 +15,21 @@ export const journeySteps = [
   },
 ] as const;
 
+export const tripStatusSteps = [
+  {
+    title: "Quote Requested",
+    text: "Complete your trip details so your agent can write a quote.",
+  },
+  {
+    title: "Review Options",
+    text: "Your quote is ready — choose the option you want.",
+  },
+  {
+    title: "Trip Confirmed",
+    text: "Your booking is confirmed. Watch email for vendor details.",
+  },
+] as const;
+
 const stageByStatus: Record<RequestStatus, number> = {
   submitted: 0,
   under_review: 0,
@@ -29,4 +44,25 @@ export function journeyStageIndex(status: RequestStatus) {
 
 export function journeyStageTitle(status: RequestStatus) {
   return journeySteps[journeyStageIndex(status)].title;
+}
+
+export function tripStatusTitle(status: RequestStatus) {
+  return tripStatusSteps[journeyStageIndex(status)].title;
+}
+
+/** Stored status written when an agent sets a 3-stage inbox step. */
+export const agentStageStatuses = [
+  "submitted",
+  "options_ready",
+  "booking_confirmed",
+] as const satisfies readonly RequestStatus[];
+
+export function statusForJourneyStage(stage: number): RequestStatus {
+  if (stage >= 2) return "booking_confirmed";
+  if (stage === 1) return "options_ready";
+  return "submitted";
+}
+
+export function tripNeedsReview(status: RequestStatus) {
+  return journeyStageIndex(status) === 1;
 }

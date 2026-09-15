@@ -30,13 +30,20 @@ export type QuoteFormData = {
   accessibilityNeeded: string;
   accessibilityNotes: string;
   adultsCount: string;
-  adultsAges: string;
+  adultsAges?: string;
+  adultDobs?: string[];
   childrenCount: string;
-  childrenAges: string;
+  childrenAges?: string;
+  childDobs?: string[];
   pets: boolean;
   supportAnimal: boolean;
   preferredAgent: string;
 };
+
+function formatDobLine(dobs?: string[], ages?: string) {
+  const list = (dobs ?? []).map((value) => value.trim()).filter(Boolean).join("; ");
+  return list || ages || "—";
+}
 
 function addWrappedText(
   doc: jsPDF,
@@ -122,8 +129,8 @@ export function downloadQuotePdf(data: QuoteFormData): string {
     ["Travel preferences", data.preferences],
     ["Accessibility needed", data.accessibilityNeeded || "—"],
     ["Accessibility notes", data.accessibilityNotes],
-    ["Adults", `${data.adultsCount}; ages: ${data.adultsAges || "—"}`],
-    ["Children", `${data.childrenCount}; ages: ${data.childrenAges || "—"}`],
+    ["Adults", `${data.adultsCount}; DOB: ${formatDobLine(data.adultDobs, data.adultsAges)}`],
+    ["Children", `${data.childrenCount}; DOB: ${formatDobLine(data.childDobs, data.childrenAges)}`],
     ["Pets", data.pets ? "Yes" : "No"],
     ["Support animal", data.supportAnimal ? "Yes" : "No"],
     ["Travel agent", data.preferredAgent || "—"],
@@ -184,8 +191,8 @@ export function quoteMailtoBody(data: QuoteFormData): string {
     `Preferences: ${data.preferences || "—"}`,
     `Accessibility: ${data.accessibilityNeeded || "—"}`,
     `Accessibility notes: ${data.accessibilityNotes || "—"}`,
-    `Adults: ${data.adultsCount}; Ages: ${data.adultsAges || "—"}`,
-    `Children: ${data.childrenCount}; Ages: ${data.childrenAges || "—"}`,
+    `Adults: ${data.adultsCount}; DOB: ${formatDobLine(data.adultDobs, data.adultsAges)}`,
+    `Children: ${data.childrenCount}; DOB: ${formatDobLine(data.childDobs, data.childrenAges)}`,
     `Pets: ${data.pets ? "Yes" : "No"}`,
     `Support Animal: ${data.supportAnimal ? "Yes" : "No"}`,
     `Travel Agent: ${data.preferredAgent || "—"}`,

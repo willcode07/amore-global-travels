@@ -1,4 +1,4 @@
-import { statusLabels } from "@/lib/agents";
+import { tripStatusTitle } from "@/lib/journey";
 import { site } from "@/lib/site";
 import { NotificationEvent, TravelRequest } from "@/lib/types";
 
@@ -64,7 +64,8 @@ export function buildNotificationEmails(
         `Hi ${request.traveler.fullName},`,
         "",
         `Thanks for starting your travel request with ${site.name}.`,
-        "Use the same email and phone number anytime to open your trip dashboard — all of your quotes will be there.",
+        "Use the same email and phone number anytime to open your trip dashboard.",
+        "Next, complete your trip details there — we need that before we can write a quote.",
         "",
         dashboardUrl(request),
         "",
@@ -79,16 +80,31 @@ export function buildNotificationEmails(
       subject:
         event === "options_ready"
           ? `Your ${site.name} quote is ready`
-          : `Trip update: ${statusLabels[request.status] ?? request.status}`,
+          : `Trip update: ${tripStatusTitle(request.status)}`,
       text: [
         `Hi ${request.traveler.fullName},`,
         "",
-        `Your trip status is now: ${statusLabels[request.status] ?? request.status}.`,
+        `Your trip is now: ${tripStatusTitle(request.status)}.`,
         event === "options_ready"
-          ? "Your personalized travel quote is ready to review in your dashboard."
+          ? "Your options are ready to review in your dashboard."
           : "Open your dashboard for the latest details.",
         "",
         dashboardUrl(request),
+      ].join("\n"),
+    });
+  }
+
+  if (event === "intake_completed") {
+    results.push({
+      to: agentEmail,
+      subject: `Trip details submitted: ${tripLabel}`,
+      text: [
+        `${request.traveler.fullName} completed the trip details questionnaire.`,
+        `Destination: ${request.trip.destination}`,
+        `Travel window: ${request.trip.travelWindow}`,
+        `Trip reference: ${tripRef}`,
+        "",
+        `You can now write a quote. Open agent inbox: ${agentInboxUrl()}`,
       ].join("\n"),
     });
   }

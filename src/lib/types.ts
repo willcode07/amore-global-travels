@@ -1,3 +1,5 @@
+import type { ResearchEvidence } from "@/lib/quote-research";
+
 export type RequestStatus =
   | "submitted"
   | "under_review"
@@ -7,7 +9,6 @@ export type RequestStatus =
 
 export type PaymentStatus =
   | "not_requested"
-  | "deposit_due"
   | "paid"
   | "refunded";
 
@@ -78,8 +79,12 @@ export type TravelProposal = {
   protectionProvider: string;
   protectionTiers: QuoteTier[];
   protectionUpgrade: string;
+  /** Internal traveler context used to prepare the quote; never rendered in QuoteDocument. */
+  agentNotes?: string[];
   notes: string[];
   thankYou: string;
+  /** Agent-recorded research; unapproved observations never become published facts. */
+  researchEvidence?: ResearchEvidence[];
   flyerUrl?: string;
   pdfUrl?: string;
 };
@@ -92,6 +97,37 @@ export type Message = {
   createdAt: string;
 };
 
+export type TripIntake = {
+  completedAt: string;
+  firstName: string;
+  lastName: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string;
+  email: string;
+  preferredContactMethods: string[];
+  destination: string;
+  transportationModes: string[];
+  departureDate: string;
+  returnDate: string;
+  notes: string;
+  accessibilityNeeded: string;
+  accessibilityNotes: string;
+  adultsCount: string;
+  adultsAges?: string;
+  adultDobs: string[];
+  childrenCount: string;
+  childrenAges?: string;
+  childDobs: string[];
+  pets: boolean;
+  supportAnimal: boolean;
+  preferredAgent: string;
+  tripType: TripType;
+};
+
 export type TravelRequest = {
   id: string;
   /** Human trip reference for agents (not used as traveler login). */
@@ -101,10 +137,18 @@ export type TravelRequest = {
   status: RequestStatus;
   progressStatus?: RequestStatus;
   paymentStatus: PaymentStatus;
+  /** Whether an installment plan is active, independent of payment status. */
+  installmentPlanActive: boolean;
+  /** Confirmation, reference, or other payment metadata. */
   paymentNote: string;
+  /** ISO date (YYYY-MM-DD) when payment was received. */
+  paidAt?: string;
+  /** ISO date (YYYY-MM-DD) when a refund was issued. */
+  refundedAt?: string;
   /** Optional ClientEase booking id; one-way CSV only — no ClientEase API. */
   clienteaseRef?: string | null;
-  assignedAgentId?: string | null;
+  /** The current owner in the shared agent queue. */
+  assignedAgentId: string;
   createdAt: string;
   updatedAt: string;
   traveler: {
@@ -123,6 +167,8 @@ export type TravelRequest = {
     preferences: string;
     preferredAgent: string;
   };
+  /** Full questionnaire required before an agent can produce a quote. */
+  intake?: TripIntake;
   selectedOptionId?: string;
   selectedQuoteId?: string;
   options: TravelOption[];
@@ -136,7 +182,8 @@ export type NotificationEvent =
   | "options_ready"
   | "option_selected"
   | "message_from_traveler"
-  | "message_from_agent";
+  | "message_from_agent"
+  | "intake_completed";
 
 export type DemoNotification = {
   id: string;

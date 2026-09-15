@@ -23,6 +23,14 @@ type RequestModalContextValue = {
 
 const RequestModalContext = createContext<RequestModalContextValue | null>(null);
 
+const DISMISS_KEY = "amore-quote-modal-dismissed";
+
+function isHomePath() {
+  const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  return path === "/" || (base !== "" && path === base);
+}
+
 export function RequestModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [prefill, setPrefill] = useState<QuotePrefill>({});
@@ -33,13 +41,17 @@ export function RequestModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeModal = useCallback(() => {
+    try {
+      window.sessionStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      /* ignore private mode */
+    }
     setOpen(false);
     setPrefill({});
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("start") !== "1") return;
     const destination = params.get("destination") ?? undefined;
     const tripType = params.get("tripType") as TripType | null;
     const allowed: TripType[] = [
@@ -48,11 +60,22 @@ export function RequestModalProvider({ children }: { children: ReactNode }) {
       "vacation_package",
       "not_sure",
     ];
-    setPrefill({
+    const nextPrefill = {
       destination,
       tripType: tripType && allowed.includes(tripType) ? tripType : undefined,
-    });
-    const timer = window.setTimeout(() => setOpen(true), 200);
+    };
+    const forceStart = params.get("start") === "1";
+    let dismissed = false;
+    try {
+      dismissed = window.sessionStorage.getItem(DISMISS_KEY) === "1";
+    } catch {
+      dismissed = false;
+    }
+
+    if (!forceStart && (!isHomePath() || dismissed)) return;
+
+    setPrefill(nextPrefill);
+    const timer = window.setTimeout(() => setOpen(true), forceStart ? 200 : 450);
     return () => window.clearTimeout(timer);
   }, []);
 

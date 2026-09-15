@@ -1,6 +1,7 @@
 import { isApiBackend } from "@/lib/data";
 import { notifyEvent } from "@/lib/email";
 import { getRepository } from "@/lib/data";
+import { recordAgentAssignment } from "@/lib/notifications";
 import {
   AddMessageInput,
   CreateRequestInput,
@@ -17,7 +18,7 @@ export async function listRequests() {
 export async function lookupTraveler(email: string, phone: string) {
   const matches = await getRepository().findByTraveler(email, phone);
   if (matches.length === 0) {
-    throw new Error("No trips found for that email and phone number.");
+    throw new Error("No quotes found for that email and phone number.");
   }
   return matches;
 }
@@ -32,6 +33,7 @@ export async function createRequest(input: CreateRequestInput) {
     });
   }
   if (!isApiBackend()) {
+    recordAgentAssignment(travelRequest, travelRequest.assignedAgentId);
     notifyEvent("request_submitted", travelRequest);
   }
   return travelRequest;
@@ -53,6 +55,9 @@ export async function updateRequest(id: string, body: UpdateRequestBody) {
     if (body.selectedOptionId || body.selectedQuoteId) {
       notifyEvent("option_selected", updated);
       notifyEvent("status_updated", updated);
+    }
+    if (body.intake) {
+      notifyEvent("intake_completed", updated);
     }
   }
 

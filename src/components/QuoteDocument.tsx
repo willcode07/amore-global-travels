@@ -93,6 +93,34 @@ export function QuoteDocument({
         </div>
       </div>
 
+      {quote.flyerUrl ? (
+        <div className="px-6 pt-6 md:px-10">
+          <a
+            href={quote.flyerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block overflow-hidden rounded-3xl border border-[#e4ddd0] bg-white"
+          >
+            {/\.(png|jpe?g|webp|gif)(\?|$)/i.test(quote.flyerUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={quote.flyerUrl}
+                alt={quote.occasionTitle}
+                className="max-h-[420px] w-full object-contain bg-[#f7f3eb]"
+              />
+            ) : (
+              <div className="px-5 py-6 text-center">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5600]">
+                  Flyer
+                </p>
+                <p className="mt-2 font-display text-xl text-[#171c19]">Open Canva / media flyer</p>
+                <p className="mt-1 text-sm text-[#5e6762]">{quote.flyerUrl}</p>
+              </div>
+            )}
+          </a>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 px-6 py-8 md:grid-cols-2 md:px-10">
         <div className="space-y-5">
           <section className="rounded-3xl bg-white p-5">

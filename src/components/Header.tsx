@@ -43,6 +43,12 @@ export function Header() {
             >
               My Trip
             </Link>
+            <Link
+              href="/agent"
+              className="whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-ink/75 transition hover:bg-cream hover:text-gold-deep"
+            >
+              Agents
+            </Link>
             {quote ? (
               <StartTravelButton className="ml-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold transition hover:brightness-95">
                 {quote.label}
@@ -85,6 +91,13 @@ export function Header() {
               onClick={() => setOpen(false)}
             >
               My Trip
+            </Link>
+            <Link
+              href="/agent"
+              className="rounded-xl px-3 py-2.5 text-base font-medium text-ink"
+              onClick={() => setOpen(false)}
+            >
+              Agents
             </Link>
             {quote ? (
               <StartTravelButton className="mt-2 rounded-full bg-gold px-4 py-3 text-left text-sm font-semibold text-on-gold">
