@@ -71,6 +71,8 @@ function sampleRequest(input: SampleRequestInput): TravelRequest {
     progressStatus: "submitted",
     paymentStatus: "not_requested",
     installmentPlanActive: false,
+    paymentPlanType: "none",
+    paymentSchedule: [],
     paymentNote: "",
     assignedAgentId: input.assignedAgentId,
     createdAt,

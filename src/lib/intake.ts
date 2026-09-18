@@ -1,4 +1,9 @@
+import { validateStoredPhone } from "@/lib/phone";
 import { TravelRequest, TripIntake, TripType } from "@/lib/types";
+
+export const CHILD_MAX_AGE = 17;
+export const ADULT_MIN_AGE = 18;
+export const MAX_PARTY_SIZE = 12;
 
 export type QuoteIntakeFields = {
   firstName: string;
@@ -87,12 +92,42 @@ export function formatTravelWindow(
   return fallback;
 }
 
-export function resizeDobs(current: string[] | undefined, count: number) {
+export function resizeList<T>(current: T[] | undefined, count: number, fill: T) {
   const n = Math.max(0, Number.isFinite(count) ? Math.floor(count) : 0);
-  const source = Array.isArray(current) ? current.map((value) => toInputDate(String(value))) : [];
+  const source = Array.isArray(current) ? current : [];
   if (source.length === n) return source;
-  if (source.length < n) return [...source, ...Array.from({ length: n - source.length }, () => "")];
+  if (source.length < n) {
+    return [...source, ...Array.from({ length: n - source.length }, () => fill)];
+  }
   return source.slice(0, n);
+}
+
+export function resizeDobs(current: string[] | undefined, count: number) {
+  const source = Array.isArray(current)
+    ? current.map((value) => toInputDate(String(value)))
+    : [];
+  return resizeList(source, count, "");
+}
+
+export function parseAge(value: string | number | undefined) {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  const age = Number(trimmed);
+  if (!Number.isInteger(age)) return null;
+  return age;
+}
+
+export function parseAgeList(values: Array<string | number> | undefined) {
+  return (values ?? [])
+    .map((value) => parseAge(value))
+    .filter((age): age is number => age !== null);
+}
+
+export function formatAgeList(ages: Array<string | number> | undefined) {
+  return parseAgeList(ages)
+    .map((age) => String(age))
+    .join(", ");
 }
 
 export function formatDobList(dobs: string[] | undefined) {
@@ -113,8 +148,75 @@ export function formatPartySummary(intake: Pick<
   const children = childDobs || intake.childrenAges || "";
   return [
     `Adults ${intake.adultsCount || "0"}${adults ? ` — ${adults}` : ""}`,
-    `Children ${intake.childrenCount || "0"}${children ? ` — ${children}` : ""}`,
+    `Children 17 and under ${intake.childrenCount || "0"}${children ? ` — ${children}` : ""}`,
   ].join(" · ");
+}
+
+export function tripPartyCounts(trip: TravelRequest["trip"]) {
+  const childrenCount = Math.max(0, Number(trip.childrenCount) || 0);
+  const adultsFromField = Number(trip.adultsCount);
+  const adultsCount =
+    Number.isInteger(adultsFromField) && adultsFromField > 0
+      ? adultsFromField
+      : Math.max(1, (Number(trip.travelers) || 1) - childrenCount);
+  return {
+    adultsCount,
+    childrenCount,
+    travelers: adultsCount + childrenCount,
+  };
+}
+
+export function formatTripParty(trip: TravelRequest["trip"]) {
+  const { adultsCount, childrenCount } = tripPartyCounts(trip);
+  const adultAges = formatAgeList(trip.adultAges);
+  const childAges = formatAgeList(trip.childAges);
+  return [
+    `Adults ${adultsCount}${adultAges ? ` — ${adultAges}` : ""}`,
+    `Children 17 and under ${childrenCount}${childAges ? ` — ${childAges}` : ""}`,
+  ].join(" · ");
+}
+
+export function formatRequestParty(request: TravelRequest) {
+  if (request.intake && (request.intake.adultsCount || request.intake.childrenCount)) {
+    return formatPartySummary(request.intake);
+  }
+  return formatTripParty(request.trip);
+}
+
+export function validateQuotePartyAges(input: {
+  adultAges: Array<string | number>;
+  childAges: Array<string | number>;
+  adultsCount: number;
+  childrenCount: number;
+}) {
+  const errors: string[] = [];
+  if (!Number.isInteger(input.adultsCount) || input.adultsCount < 1 || input.adultsCount > MAX_PARTY_SIZE) {
+    errors.push("Enter between 1 and 12 adults.");
+  } else if (input.adultAges.length !== input.adultsCount) {
+    errors.push("Enter an age for each adult.");
+  } else {
+    input.adultAges.forEach((value, index) => {
+      const age = parseAge(value);
+      if (age === null || age < ADULT_MIN_AGE || age > 120) {
+        errors.push(`Adult ${index + 1} needs an age ${ADULT_MIN_AGE}–120.`);
+      }
+    });
+  }
+
+  if (!Number.isInteger(input.childrenCount) || input.childrenCount < 0 || input.childrenCount > MAX_PARTY_SIZE) {
+    errors.push("Enter between 0 and 12 children.");
+  } else if (input.childAges.length !== input.childrenCount) {
+    errors.push("Enter an age for each child.");
+  } else {
+    input.childAges.forEach((value, index) => {
+      const age = parseAge(value);
+      if (age === null || age < 0 || age > CHILD_MAX_AGE) {
+        errors.push(`Child ${index + 1} needs an age 0–${CHILD_MAX_AGE}.`);
+      }
+    });
+  }
+
+  return errors;
 }
 
 export function quoteDefaultsFromRequest(request: TravelRequest): QuoteIntakeFields & {
@@ -123,9 +225,10 @@ export function quoteDefaultsFromRequest(request: TravelRequest): QuoteIntakeFie
   const intake = request.intake;
   const names = splitFullName(request.traveler.fullName);
   const dates = parseTravelWindow(request.trip.travelWindow);
-  const travelers = request.trip.travelers > 0 ? String(request.trip.travelers) : "2";
-  const adultsCount = intake?.adultsCount || travelers || "2";
-  const childrenCount = intake?.childrenCount || "0";
+  const party = tripPartyCounts(request.trip);
+  const travelers = party.travelers > 0 ? String(party.travelers) : "2";
+  const adultsCount = intake?.adultsCount || String(party.adultsCount) || travelers || "2";
+  const childrenCount = intake?.childrenCount || String(party.childrenCount) || "0";
 
   return {
     firstName: intake?.firstName || names.firstName,
@@ -246,8 +349,8 @@ export function validateQuoteIntake(
   if (!data.state.trim()) errors.state = "Select a state.";
   if (!/^\d{5}$/.test(data.zip.trim())) errors.zip = "Enter a 5-digit ZIP code.";
 
-  const digits = data.phone.replace(/\D/g, "");
-  if (digits.length < 10) errors.phone = "Enter a phone number with at least 10 digits.";
+  const phoneError = validateStoredPhone(data.phone);
+  if (phoneError) errors.phone = phoneError;
   if (!EMAIL_PATTERN.test(data.email.trim())) errors.email = "Enter a valid email address.";
   if (!data.destination.trim()) errors.destination = "Enter a destination.";
 
@@ -297,9 +400,9 @@ export function validateQuoteIntake(
         return;
       }
       const age = ageOnDate(dob, data.departureDate || dob);
-      if (age !== null && age >= 18) {
+      if (age !== null && age >= ADULT_MIN_AGE) {
         warnings.push(
-          `Child ${index + 1} will be ${age} on departure. You can still save — or list them as an adult.`,
+          `Child ${index + 1} will be ${age} on departure. You can still save — or list them as an adult (18+).`,
         );
       }
     });

@@ -62,3 +62,33 @@ export const aura = {
   summary:
     "An Aura digital frame keeps vacation photos moving — shared with everyone on the trip, without chasing a photo album. Amore can include a frame as an add-on when we quote your getaway.",
 };
+
+export const cruisePackages = [
+  {
+    slug: "caribbean-cruise",
+    name: "Caribbean cruise",
+    eyebrow: "Group & private sailings",
+    summary:
+      "Island hops from Miami and beyond — an agent matches ship, dates, and cabin to your group.",
+    destination: "Caribbean cruise",
+    image: assetPath("/images/travel-1.jpg"),
+  },
+  {
+    slug: "mediterranean-cruise",
+    name: "Mediterranean cruise",
+    eyebrow: "Ports with a plan",
+    summary:
+      "Italy, Greece, and the coast in between. A real itinerary, not a mystery yacht picker.",
+    destination: "Mediterranean cruise",
+    image: assetPath("/images/travel-2.jpg"),
+  },
+  {
+    slug: "alaska-cruise",
+    name: "Alaska cruise",
+    eyebrow: "Glaciers & long days",
+    summary:
+      "A cooler-weather sailing with the same Amore follow-through — quote first, book when you are sure.",
+    destination: "Alaska cruise",
+    image: assetPath("/images/about.jpeg"),
+  },
+] as const;

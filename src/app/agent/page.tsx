@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AgentClientDetails } from "@/components/AgentClientDetails";
 import { MessageThread } from "@/components/MessageThread";
+import { PaymentPlanPanel } from "@/components/PaymentPlanPanel";
 import { QuoteComposer } from "@/components/QuoteComposer";
 import { QuoteDocument } from "@/components/QuoteDocument";
 import { StatusTracker } from "@/components/StatusTracker";
@@ -10,12 +11,15 @@ import {
   agentNameForId,
   assignableAgents,
   defaultAssignedAgentId,
-  installmentPlanLabel,
   normalizeAssignedAgentId,
   paymentLabels,
   paymentOrder,
   tripTypeLabels,
 } from "@/lib/agents";
+import {
+  paymentPlanTypeLabels,
+  scheduleSummary,
+} from "@/lib/payments";
 import { downloadCsv, requestsToCsv } from "@/lib/csv";
 import { isApiBackend } from "@/lib/data/mode";
 import { resetApiAuthCache } from "@/lib/data/session-cache";
@@ -23,7 +27,7 @@ import {
   formatDisplayDate,
   formatIntakeAddress,
   formatPartySummary,
-  isIntakeComplete,
+  formatRequestParty,
   QuoteIntakeFields,
   toTripIntake,
 } from "@/lib/intake";
@@ -48,6 +52,8 @@ import { emailsMatch, phonesMatch } from "@/lib/session";
 import { logoutApiSession, postJson } from "@/lib/uploads";
 import {
   DemoNotification,
+  InstallmentPayment,
+  PaymentPlanType,
   PaymentStatus,
   RequestStatus,
   TravelProposal,
@@ -297,18 +303,22 @@ export default function AgentPage() {
     }
   }
 
-  async function toggleInstallmentPlan() {
+  async function savePaymentPlan(input: {
+    paymentPlanType: PaymentPlanType;
+    paymentSchedule: InstallmentPayment[];
+  }) {
     if (!selected) return;
     setSaving(true);
     setError("");
     try {
       const updated = await updateRequest(selected.id, {
-        installmentPlanActive: !selected.installmentPlanActive,
+        paymentPlanType: input.paymentPlanType,
+        paymentSchedule: input.paymentSchedule,
       });
       await loadRequests();
       setSelectedId(updated.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update installment plan.");
+      setError(err instanceof Error ? err.message : "Unable to save payment plan.");
     } finally {
       setSaving(false);
     }
@@ -389,10 +399,6 @@ export default function AgentPage() {
 
   async function publishQuote(quote: TravelProposal) {
     if (!selected) return;
-    if (!isIntakeComplete(selected)) {
-      setError("Trip details must be completed before a quote can be published.");
-      return;
-    }
     const quality = evaluateQuoteQuality(quote);
     if (!quality.canPublish) {
       setError(
@@ -670,9 +676,7 @@ export default function AgentPage() {
                   {request.assignedAgentId === viewingAgentId ? " · Assigned to me" : ""}
                 </div>
                 <div className="mt-1 text-xs font-medium text-gold-deep">
-                  {isIntakeComplete(request)
-                    ? tripStatusTitle(request.status)
-                    : "Waiting on details"}
+                  {tripStatusTitle(request.status)}
                 </div>
               </button>
             ))}
@@ -779,26 +783,12 @@ export default function AgentPage() {
                   ))}
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  aria-pressed={selected.installmentPlanActive}
-                  onClick={() => toggleInstallmentPlan()}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                    selected.installmentPlanActive
-                      ? "bg-gold text-on-gold"
-                      : "border border-line bg-surface text-muted"
-                  }`}
-                >
-                  {selected.installmentPlanActive
-                    ? `${installmentPlanLabel} active`
-                    : installmentPlanLabel}
-                </button>
-                <span className="text-xs text-muted">
-                  Tracks an active plan independently of payment status.
-                </span>
-              </div>
+              <PaymentPlanPanel
+                request={selected}
+                editable
+                saving={saving}
+                onSavePlan={savePaymentPlan}
+              />
               {selected.paymentStatus === "paid" || selected.paymentStatus === "refunded" ? (
                 <form
                   className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,220px)_1fr_auto] sm:items-end"
@@ -850,7 +840,7 @@ export default function AgentPage() {
                 </div>
                 <div>
                   <dt className="text-muted">Travelers</dt>
-                  <dd className="font-medium">{selected.trip.travelers}</dd>
+                  <dd className="font-medium">{formatRequestParty(selected)}</dd>
                 </div>
                 <div>
                   <dt className="text-muted">Trip type</dt>
@@ -868,8 +858,11 @@ export default function AgentPage() {
                   <dt className="text-muted">Payment</dt>
                   <dd className="font-medium">
                     {paymentLabels[selected.paymentStatus]}
-                    {selected.installmentPlanActive
-                      ? ` · ${installmentPlanLabel} active`
+                    {selected.paymentPlanType && selected.paymentPlanType !== "none"
+                      ? ` · ${paymentPlanTypeLabels[selected.paymentPlanType]}`
+                      : ""}
+                    {scheduleSummary(selected)
+                      ? ` · ${scheduleSummary(selected)}`
                       : ""}
                     {paymentDateFor(selected)
                       ? ` · ${formatDisplayDate(paymentDateFor(selected))}`
@@ -957,8 +950,8 @@ export default function AgentPage() {
                 </dl>
               ) : (
                 <p className="mt-4 rounded-2xl border border-dashed border-line px-4 py-3 text-sm text-muted">
-                  Waiting on the traveler to complete trip details in their dashboard.
-                  A quote cannot be produced until that form is submitted.
+                  Expanded trip details have not been submitted yet. You can still
+                  generate a quote from this request.
                 </p>
               )}
             </section>
@@ -968,14 +961,12 @@ export default function AgentPage() {
                 <div>
                   <h3 className="font-display text-2xl text-ink">Generate a quote</h3>
                   <p className="mt-1 text-sm text-muted">
-                    {isIntakeComplete(selected)
-                      ? "Opens a draft from this traveler’s details. Preview live, then confirm and send — the traveler reviews it like any other quote."
-                      : "Trip details are required before you can generate a quote."}
+                    Opens a draft from this traveler’s request. Preview live, then
+                    confirm and send — the traveler reviews it like any other quote.
                   </p>
                 </div>
                 <button
                   type="button"
-                  disabled={!isIntakeComplete(selected)}
                   onClick={() => setComposing(true)}
                   className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1008,13 +999,12 @@ export default function AgentPage() {
             <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
               <h3 className="font-display text-2xl text-ink">Canva / media flyer</h3>
               <p className="mt-1 text-sm text-muted">
-                {isIntakeComplete(selected)
-                  ? "Attach a Canva link, PDF, or image inside a normal quote draft. It uses the same live preview, Quality Check, and traveler quote flow as every generated quote."
-                  : "Available after the traveler submits trip details."}
+                Attach a Canva link, PDF, or image inside a normal quote draft. It
+                uses the same live preview, Quality Check, and traveler quote flow as
+                every generated quote.
               </p>
               <button
                 type="button"
-                disabled={!isIntakeComplete(selected)}
                 onClick={() => setComposing(true)}
                 className="mt-5 rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >

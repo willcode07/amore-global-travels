@@ -3,7 +3,7 @@ import type { RequestStatus } from "@/lib/types";
 export const journeySteps = [
   {
     title: "Request a Quote",
-    text: "Share dates, travelers, and the kind of getaway you have in mind.",
+    text: "Share dates, who is traveling, and the kind of getaway you have in mind.",
   },
   {
     title: "Review your options",
@@ -18,7 +18,7 @@ export const journeySteps = [
 export const tripStatusSteps = [
   {
     title: "Quote Requested",
-    text: "Complete your trip details so your agent can write a quote.",
+    text: "Your agent has your request and will follow up, usually within 24 hours.",
   },
   {
     title: "Review Options",

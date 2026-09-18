@@ -4,16 +4,18 @@ import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ActivityLog } from "@/components/ActivityLog";
 import { MessageThread } from "@/components/MessageThread";
+import { PaymentPlanPanel } from "@/components/PaymentPlanPanel";
+import { PhoneField } from "@/components/PhoneField";
 import { QuoteDocument } from "@/components/QuoteDocument";
 import { QuoteIntakeForm } from "@/components/QuoteIntakeForm";
 import { StartTravelButton } from "@/components/RequestModalProvider";
 import { StatusTracker } from "@/components/StatusTracker";
-import { CompleteTripDetailsButton, StatusBadge } from "@/components/TripStatus";
+import { StatusBadge } from "@/components/TripStatus";
 import {
-  installmentPlanLabel,
   paymentLabels,
   tripTypeLabels,
 } from "@/lib/agents";
+import { paymentPlanTypeLabels, scheduleSummary } from "@/lib/payments";
 import { buildTripActivity } from "@/lib/activity";
 import { isApiBackend } from "@/lib/data/mode";
 import { proposalFromOption } from "@/lib/quotes";
@@ -21,6 +23,7 @@ import {
   formatDisplayDate,
   formatIntakeAddress,
   formatPartySummary,
+  formatRequestParty,
   isIntakeComplete,
   QuoteIntakeFields,
   quoteDefaultsFromRequest,
@@ -38,12 +41,16 @@ function nextStepCopy(trip: TravelRequest) {
     return tripStatusSteps[2].text;
   }
   if (trip.selectedQuoteId || trip.selectedOptionId) {
-    return "You chose an option. Your agent will confirm the trip.";
+    return isIntakeComplete(trip)
+      ? "You chose an option. Your agent will confirm the trip."
+      : "You chose an option. Add traveler names, birth dates, and address so booking can move forward.";
   }
   if (trip.quotes.length > 0 || trip.options.length > 0) {
-    return tripStatusSteps[1].text;
+    return isIntakeComplete(trip)
+      ? tripStatusSteps[1].text
+      : "Your quote is ready. Add trip details before you confirm — names, birth dates, and address.";
   }
-  return "";
+  return "Your agent has this request and will follow up, usually within 24 hours.";
 }
 
 function DashboardInner() {
@@ -74,7 +81,7 @@ function DashboardInner() {
   );
 
   const intakeComplete = selected ? isIntakeComplete(selected) : false;
-  const showIntakeForm = Boolean(selected && (!intakeComplete || editingIntake));
+  const showIntakeForm = Boolean(selected && editingIntake);
 
   useEffect(() => {
     if (!pendingDetailsScroll || !showIntakeForm) return;
@@ -315,16 +322,12 @@ function DashboardInner() {
               required
             />
           </label>
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium">Phone number</span>
-            <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              autoComplete="tel"
-              className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
-              required
-            />
-          </label>
+          <PhoneField
+            label="Phone number"
+            value={phone}
+            onChange={setPhone}
+            required
+          />
           {isApiBackend() && otpSent ? (
             <label className="block text-sm">
               <span className="mb-1.5 block font-medium">Email code</span>
@@ -369,7 +372,6 @@ function DashboardInner() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {trips.map((trip) => {
                 const active = selectedId === trip.id;
-                const detailsNeeded = !isIntakeComplete(trip);
                 return (
                   <article
                     key={trip.id}
@@ -393,13 +395,6 @@ function DashboardInner() {
                         <StatusBadge status={trip.status} />
                       </div>
                     </button>
-                    <div className="mt-4">
-                      <CompleteTripDetailsButton
-                        size="sm"
-                        complete={!detailsNeeded}
-                        onClick={() => goToTripDetails(trip.id)}
-                      />
-                    </div>
                   </article>
                 );
               })}
@@ -417,7 +412,7 @@ function DashboardInner() {
                     <p className="mt-1 text-sm text-muted">
                       {selected.trip.travelWindow}
                       {selected.trip.travelers
-                        ? ` · ${selected.trip.travelers} traveler${selected.trip.travelers === 1 ? "" : "s"}`
+                        ? ` · ${formatRequestParty(selected)}`
                         : ""}
                     </p>
                   </div>
@@ -429,14 +424,21 @@ function DashboardInner() {
                 {nextStepCopy(selected) ? (
                   <p className="mt-6 rounded-2xl bg-cream/80 px-4 py-3 text-sm text-ink">
                     {nextStepCopy(selected)}
+                    {(selected.quotes.length > 0 || selected.options.length > 0) &&
+                    !intakeComplete ? (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          onClick={() => goToTripDetails(selected.id)}
+                          className="font-semibold text-gold-deep underline-offset-2 hover:underline"
+                        >
+                          Add trip details
+                        </button>
+                      </>
+                    ) : null}
                   </p>
                 ) : null}
-                <div className="mt-4">
-                  <CompleteTripDetailsButton
-                    complete={intakeComplete}
-                    onClick={() => goToTripDetails(selected.id)}
-                  />
-                </div>
               </section>
 
               {showIntakeForm ? (
@@ -452,7 +454,7 @@ function DashboardInner() {
                     description={
                       intakeComplete
                         ? "Change anything your agent should know."
-                        : undefined
+                        : "Optional until you choose a quote. Names, address, and birth dates help us book accurately."
                     }
                     submitLabel="Save trip details"
                     saving={savingIntake}
@@ -485,19 +487,8 @@ function DashboardInner() {
                     <p className="mt-1 text-sm text-muted">
                       {selected.quotes.length || selected.options.length ? (
                         "Choose the option you want. Nothing is booked until your agent confirms."
-                      ) : intakeComplete ? (
-                        "Your agent will post options here when they’re ready."
                       ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => goToTripDetails(selected.id)}
-                            className="font-semibold text-gold-deep underline-offset-2 hover:underline"
-                          >
-                            Complete your trip details
-                          </button>{" "}
-                          first — then your agent can write a quote.
-                        </>
+                        "Your agent is putting options together. We’ll email you when a quote is ready."
                       )}
                     </p>
                   </div>
@@ -511,19 +502,9 @@ function DashboardInner() {
                 </div>
 
                 {selected.quotes.length === 0 && selected.options.length === 0 ? (
-                  intakeComplete ? (
-                    <p className="rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted">
-                      No options yet. We’ll email you as soon as a quote is ready.
-                    </p>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => goToTripDetails(selected.id)}
-                      className="w-full rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted hover:border-gold/50"
-                    >
-                      Complete your trip details above so your agent can prepare a quote.
-                    </button>
-                  )
+                  <p className="rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted">
+                    No options yet. An agent will follow up, usually within 24 hours.
+                  </p>
                 ) : null}
 
                 {selected.quotes.map((quote) => {
@@ -620,7 +601,7 @@ function DashboardInner() {
                     label="Trip type"
                     value={tripTypeLabels[selected.trip.tripType] ?? selected.trip.tripType}
                   />
-                  <Item label="Travelers" value={String(selected.trip.travelers)} />
+                  <Item label="Travelers" value={formatRequestParty(selected)} />
                   {selected.trip.departureCity ? (
                     <Item label="Departure city" value={selected.trip.departureCity} />
                   ) : null}
@@ -631,14 +612,16 @@ function DashboardInner() {
                     <Item label="Preferred agent" value={selected.trip.preferredAgent} />
                   ) : null}
                   {selected.paymentStatus !== "not_requested" ||
-                  selected.installmentPlanActive ? (
+                  selected.installmentPlanActive ||
+                  (selected.paymentPlanType && selected.paymentPlanType !== "none") ? (
                     <Item
                       label="Payment"
                       value={[
                         paymentLabels[selected.paymentStatus] ?? selected.paymentStatus,
-                        selected.installmentPlanActive
-                          ? `${installmentPlanLabel} active`
+                        selected.paymentPlanType && selected.paymentPlanType !== "none"
+                          ? paymentPlanTypeLabels[selected.paymentPlanType]
                           : "",
+                        scheduleSummary(selected),
                         selected.paymentStatus === "paid" && selected.paidAt
                           ? formatDisplayDate(selected.paidAt)
                           : "",
@@ -651,6 +634,9 @@ function DashboardInner() {
                     />
                   ) : null}
                 </dl>
+                <div className="mt-5">
+                  <PaymentPlanPanel request={selected} />
+                </div>
                 {selected.intake ? <IntakeSummary request={selected} /> : null}
                 <div className="mt-6">
                   <h4 className="text-sm font-medium text-ink">Notes</h4>
@@ -666,6 +652,14 @@ function DashboardInner() {
                     className="mt-4 text-sm font-semibold text-gold-deep"
                   >
                     Update trip details
+                  </button>
+                ) : !showIntakeForm ? (
+                  <button
+                    type="button"
+                    onClick={() => goToTripDetails(selected.id)}
+                    className="mt-4 text-sm font-semibold text-gold-deep"
+                  >
+                    Add trip details
                   </button>
                 ) : null}
               </details>

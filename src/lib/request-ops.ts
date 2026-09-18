@@ -4,10 +4,13 @@ import {
   normalizeAssignedAgentId,
 } from "@/lib/agents";
 import { createId, createTripRef } from "@/lib/ids";
-import { formatTravelWindow, travelerCountFromIntake } from "@/lib/intake";
+import { formatTravelWindow, parseAgeList, travelerCountFromIntake, tripPartyCounts } from "@/lib/intake";
 import { evaluateQuoteQuality } from "@/lib/quote-quality";
 import {
   MessageSender,
+  InstallmentPayment,
+  MessageAttachment,
+  PaymentPlanType,
   PaymentStatus,
   RequestStatus,
   TravelOption,
@@ -16,6 +19,13 @@ import {
   TripIntake,
   TripType,
 } from "@/lib/types";
+import {
+  defaultScheduleForPlan,
+  isMultiDatePaymentPlan,
+  normalizeInstallment,
+  normalizePaymentPlanType,
+  paymentPlanActive,
+} from "@/lib/payments";
 
 export type CreateRequestInput = {
   fullName: string;
@@ -25,6 +35,10 @@ export type CreateRequestInput = {
   departureCity?: string;
   travelWindow: string;
   travelers?: string | number;
+  adultsCount?: string | number;
+  childrenCount?: string | number;
+  adultAges?: Array<string | number>;
+  childAges?: Array<string | number>;
   budget?: string;
   preferredAgent?: string;
   preferences?: string;
@@ -38,6 +52,8 @@ export type UpdateRequestBody = {
   status?: RequestStatus;
   paymentStatus?: PaymentStatus;
   installmentPlanActive?: boolean;
+  paymentPlanType?: PaymentPlanType;
+  paymentSchedule?: InstallmentPayment[];
   assignedAgentId?: string;
   paymentNote?: string;
   paidAt?: string;
@@ -61,6 +77,7 @@ export type AddMessageInput = {
   sender: MessageSender;
   senderName?: string;
   body: string;
+  attachments?: MessageAttachment[];
 };
 
 function travelerFirstName(request: TravelRequest) {
@@ -78,6 +95,15 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
   const phone = String(input.phone).trim() || "404-500-7045";
   const destination = String(input.destination).trim() || "Demo destination";
   const travelWindow = String(input.travelWindow).trim() || "Flexible dates";
+  const adultAges = parseAgeList(input.adultAges);
+  const childAges = parseAgeList(input.childAges);
+  const childrenCount = Math.max(0, Number(input.childrenCount) || childAges.length || 0);
+  const adultsFromInput = Number(input.adultsCount);
+  const adultsCount =
+    Number.isInteger(adultsFromInput) && adultsFromInput > 0
+      ? adultsFromInput
+      : adultAges.length || Math.max(1, (Number(input.travelers) || 1) - childrenCount);
+  const travelers = adultsCount + childrenCount || Number(input.travelers) || 1;
 
   return {
     id: createId("req"),
@@ -86,6 +112,8 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
     progressStatus: "submitted",
     paymentStatus: "not_requested",
     installmentPlanActive: false,
+    paymentPlanType: "none",
+    paymentSchedule: [],
     assignedAgentId: assignedAgentIdForPreference(
       input.intake?.preferredAgent || input.preferredAgent,
     ),
@@ -102,7 +130,11 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
       destination,
       departureCity: String(input.departureCity ?? "").trim(),
       travelWindow,
-      travelers: Number(input.travelers) || 1,
+      travelers,
+      adultsCount,
+      childrenCount,
+      adultAges,
+      childAges,
       budget: String(input.budget ?? "").trim(),
       tripType: input.tripType ?? "not_sure",
       tripStyle: Array.isArray(input.tripStyle) ? input.tripStyle.map(String) : [],
@@ -117,7 +149,7 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
         id: createId("msg"),
         sender: "agent",
         senderName: "Amore Global",
-        body: "Thanks for submitting your travel request. Complete your trip details in this dashboard so your agent can write a quote.",
+        body: "Thanks for requesting a quote. Your agent has received this request and will follow up, usually within 24 hours. You can add extra trip details in your dashboard anytime — nothing else is required before we start researching options.",
         createdAt: now,
       },
     ],
@@ -157,8 +189,45 @@ export function applyUpdate(
   if (body.paymentStatus) {
     updated.paymentStatus = body.paymentStatus;
   }
+  if (body.paymentPlanType) {
+    const nextType = normalizePaymentPlanType(body.paymentPlanType);
+    updated.paymentPlanType = nextType;
+    updated.installmentPlanActive = paymentPlanActive(nextType);
+    if (!isMultiDatePaymentPlan(nextType)) {
+      updated.paymentSchedule = [];
+    } else if (
+      body.paymentSchedule === undefined &&
+      (!updated.paymentSchedule || updated.paymentSchedule.length === 0)
+    ) {
+      updated.paymentSchedule = defaultScheduleForPlan(nextType);
+    }
+  }
   if (typeof body.installmentPlanActive === "boolean") {
     updated.installmentPlanActive = body.installmentPlanActive;
+    if (body.paymentPlanType === undefined) {
+      if (body.installmentPlanActive) {
+        if (!isMultiDatePaymentPlan(updated.paymentPlanType ?? "none")) {
+          updated.paymentPlanType = "installments";
+          if (!updated.paymentSchedule?.length) {
+            updated.paymentSchedule = defaultScheduleForPlan("installments");
+          }
+        }
+      } else if (isMultiDatePaymentPlan(updated.paymentPlanType ?? "none")) {
+        updated.paymentPlanType = "none";
+        updated.paymentSchedule = [];
+      }
+    }
+  }
+  if (body.paymentSchedule) {
+    updated.paymentSchedule = body.paymentSchedule
+      .map((item) => normalizeInstallment(item))
+      .filter((item): item is InstallmentPayment => Boolean(item));
+    if (updated.paymentSchedule.length > 0 && !updated.installmentPlanActive) {
+      updated.installmentPlanActive = true;
+      if (!isMultiDatePaymentPlan(updated.paymentPlanType ?? "none")) {
+        updated.paymentPlanType = "custom";
+      }
+    }
   }
   if (typeof body.assignedAgentId === "string") {
     updated.assignedAgentId = normalizeAssignedAgentId(body.assignedAgentId);
@@ -181,6 +250,12 @@ export function applyUpdate(
     const travelers = travelerCountFromIntake(intake);
     const fullName =
       [intake.firstName, intake.lastName].filter(Boolean).join(" ").trim();
+    const party = tripPartyCounts({
+      ...updated.trip,
+      adultsCount: Number(intake.adultsCount) || updated.trip.adultsCount,
+      childrenCount: Number(intake.childrenCount) || updated.trip.childrenCount,
+      travelers,
+    });
     updated.intake = intake;
     updated.traveler = {
       fullName: fullName || existing.traveler.fullName,
@@ -196,6 +271,8 @@ export function applyUpdate(
         updated.trip.travelWindow,
       ),
       travelers: travelers || updated.trip.travelers,
+      adultsCount: party.adultsCount,
+      childrenCount: party.childrenCount,
       tripType: intake.tripType || updated.trip.tripType,
       preferredAgent: intake.preferredAgent.trim() || updated.trip.preferredAgent,
       preferences: intake.notes.trim(),
@@ -331,9 +408,10 @@ export function applyMessage(
   existing: TravelRequest,
   input: AddMessageInput,
 ): TravelRequest {
+  const attachments = (input.attachments ?? []).filter((item) => item?.url);
   const messageBody = String(input.body ?? "").trim();
   const sender = input.sender;
-  if (!messageBody || (sender !== "traveler" && sender !== "agent")) {
+  if ((!messageBody && attachments.length === 0) || (sender !== "traveler" && sender !== "agent")) {
     throw new Error("Invalid message.");
   }
 
@@ -343,8 +421,9 @@ export function applyMessage(
     senderName:
       String(input.senderName ?? "").trim() ||
       (sender === "traveler" ? existing.traveler.fullName : "Amore Global Agent"),
-    body: messageBody,
+    body: messageBody || (attachments.length === 1 ? "Shared a file." : "Shared files."),
     createdAt: new Date().toISOString(),
+    attachments: attachments.length ? attachments : undefined,
   };
 
   return {

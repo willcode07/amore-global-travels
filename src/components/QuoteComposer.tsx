@@ -225,23 +225,13 @@ export function QuoteComposer({
           onChange={(resortRating) => patch({ resortRating })}
           placeholder="e.g. 4.5"
         />
-        <div>
-          <PlaceSuggestInput
-            kind="address"
-            label="Address"
-            value={quote.resortAddress}
-            onChange={(resortAddress) => patch({ resortAddress })}
-            onResolved={(place) =>
-              patch({
-                resortAddress: [place.address1 || place.label, place.city, place.state, place.zip]
-                  .filter(Boolean)
-                  .join(", "),
-              })
-            }
-            placeholder="Start typing a street address"
-          />
-          <IssueMessage issues={fieldIssues("resortAddress")} />
-        </div>
+        <Field
+          label="Address"
+          value={quote.resortAddress}
+          onChange={(resortAddress) => patch({ resortAddress })}
+          placeholder="Property or port address"
+          issues={fieldIssues("resortAddress")}
+        />
         <Field
           label="Room / cabin"
           value={quote.roomType}

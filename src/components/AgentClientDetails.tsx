@@ -7,6 +7,7 @@ import {
   formatDisplayDate,
   formatIntakeAddress,
   formatPartySummary,
+  formatRequestParty,
   formatTravelWindow,
   isIntakeComplete,
   QuoteIntakeFields,
@@ -43,7 +44,7 @@ function RequestSnapshot({ request }: { request: TravelRequest }) {
       <Item label="Phone" value={request.traveler.phone} />
       <Item label="Destination" value={request.trip.destination} />
       <Item label="Travel window" value={request.trip.travelWindow} />
-      <Item label="Travelers" value={String(request.trip.travelers || "")} />
+      <Item label="Travelers" value={formatRequestParty(request)} />
       <Item label="Budget" value={request.trip.budget} />
       <Item
         label="Trip type"
@@ -142,7 +143,9 @@ export function AgentClientDetails({
         <div className="rounded-3xl border border-line bg-surface p-6">
           <h3 className="font-display text-xl text-ink">Submitted request</h3>
           <p className="mt-3 rounded-2xl border border-dashed border-line bg-cream px-4 py-3 text-sm text-ink">
-            Waiting on trip details. Below is what they submitted with the quote request.
+            Expanded trip details are optional at this stage. Below is the quote
+            request — you can generate a quote now, or add details if you collected
+            them by phone.
           </p>
           <div className="mt-5">
             <RequestSnapshot request={request} />
@@ -162,11 +165,11 @@ export function AgentClientDetails({
         <QuoteIntakeForm
           key={request.id}
           defaults={quoteDefaultsFromRequest(request)}
-          title={complete ? "Correct trip details" : "Complete trip details"}
+          title={complete ? "Correct trip details" : "Add trip details"}
           description={
             complete
               ? "Edits save to this travel quote — they do not generate a new PDF."
-              : "Save the questionnaire here so you can write a quote. This updates the selected travel quote."
+              : "Optional. Save extra details if you collected them by phone. You can write a quote without this form."
           }
           submitLabel="Save trip details"
           notesLabel="Notes"

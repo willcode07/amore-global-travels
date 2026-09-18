@@ -12,6 +12,31 @@ export type PaymentStatus =
   | "paid"
   | "refunded";
 
+export type PaymentPlanType =
+  | "none"
+  | "pay_in_full"
+  | "deposit_and_balance"
+  | "installments"
+  | "custom";
+
+export type InstallmentStatus =
+  | "scheduled"
+  | "paid"
+  | "overdue"
+  | "waived";
+
+export type InstallmentPayment = {
+  id: string;
+  label: string;
+  /** ISO date YYYY-MM-DD */
+  dueDate: string;
+  amount: string;
+  status: InstallmentStatus;
+  /** ISO date YYYY-MM-DD when this installment was received */
+  paidAt?: string;
+  note?: string;
+};
+
 export type TripType =
   | "cruise"
   | "all_inclusive"
@@ -89,12 +114,20 @@ export type TravelProposal = {
   pdfUrl?: string;
 };
 
+export type MessageAttachment = {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: string;
+};
+
 export type Message = {
   id: string;
   sender: MessageSender;
   senderName: string;
   body: string;
   createdAt: string;
+  attachments?: MessageAttachment[];
 };
 
 export type TripIntake = {
@@ -137,8 +170,15 @@ export type TravelRequest = {
   status: RequestStatus;
   progressStatus?: RequestStatus;
   paymentStatus: PaymentStatus;
-  /** Whether an installment plan is active, independent of payment status. */
+  /**
+   * Whether a multi-date installment-style plan is active.
+   * Kept in sync with paymentPlanType for older UI / CSV.
+   */
   installmentPlanActive: boolean;
+  /** How the traveler is paying (full, deposit+balance, installments, custom). */
+  paymentPlanType: PaymentPlanType;
+  /** Ordered payment dates for installment-style plans. */
+  paymentSchedule: InstallmentPayment[];
   /** Confirmation, reference, or other payment metadata. */
   paymentNote: string;
   /** ISO date (YYYY-MM-DD) when payment was received. */
@@ -161,13 +201,19 @@ export type TravelRequest = {
     departureCity: string;
     travelWindow: string;
     travelers: number;
+    /** Adults 18+ on the initial quote request. */
+    adultsCount?: number;
+    /** Children 17 and under on the initial quote request. */
+    childrenCount?: number;
+    adultAges?: number[];
+    childAges?: number[];
     budget: string;
     tripType: TripType;
     tripStyle: string[];
     preferences: string;
     preferredAgent: string;
   };
-  /** Full questionnaire required before an agent can produce a quote. */
+  /** Expanded questionnaire. Optional until a quote is approved. */
   intake?: TripIntake;
   selectedOptionId?: string;
   selectedQuoteId?: string;

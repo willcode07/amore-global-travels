@@ -1,7 +1,15 @@
 import { createId } from "@/lib/ids";
+import { parseAgeList, tripPartyCounts } from "@/lib/intake";
 import { assignedAgentIdForPreference, normalizeAssignedAgentId } from "@/lib/agents";
+import {
+  derivePaymentPlanType,
+  normalizeInstallment,
+  paymentPlanActive,
+} from "@/lib/payments";
 import { persistentSampleRequests } from "@/lib/sample-requests";
 import {
+  Message,
+  MessageAttachment,
   PaymentStatus,
   TravelProposal,
   TravelRequest,
@@ -56,6 +64,66 @@ function asIsoDate(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+function asNumberList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return parseAgeList(value as Array<string | number>);
+}
+
+function normalizeAttachment(raw: MessageAttachment): MessageAttachment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const url = String(raw.url ?? "").trim();
+  if (!url) return null;
+  return {
+    id: String(raw.id ?? createId("att")),
+    name: String(raw.name ?? "Attachment").trim() || "Attachment",
+    url,
+    mimeType: String(raw.mimeType ?? "").trim(),
+  };
+}
+
+function normalizeMessages(raw: TravelRequest["messages"]): Message[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((message) => {
+    const attachments = Array.isArray(message.attachments)
+      ? message.attachments
+          .map((item) => normalizeAttachment(item))
+          .filter((item): item is MessageAttachment => Boolean(item))
+      : [];
+    return {
+      ...message,
+      attachments: attachments.length ? attachments : undefined,
+    };
+  });
+}
+
+function normalizeTrip(raw: TravelRequest["trip"]): TravelRequest["trip"] {
+  const party = tripPartyCounts({
+    destination: raw?.destination ?? "",
+    departureCity: raw?.departureCity ?? "",
+    travelWindow: raw?.travelWindow ?? "",
+    travelers: Number(raw?.travelers) || 0,
+    adultsCount: Number(raw?.adultsCount) || undefined,
+    childrenCount: Number(raw?.childrenCount) || undefined,
+    adultAges: asNumberList(raw?.adultAges),
+    childAges: asNumberList(raw?.childAges),
+    budget: raw?.budget ?? "",
+    tripType: asTripType(raw?.tripType),
+    tripStyle: Array.isArray(raw?.tripStyle) ? raw.tripStyle : [],
+    preferences: raw?.preferences ?? "",
+    preferredAgent: raw?.preferredAgent ?? "",
+  });
+  return {
+    ...raw,
+    tripType: asTripType(raw?.tripType),
+    tripStyle: Array.isArray(raw?.tripStyle) ? raw.tripStyle : [],
+    travelers: party.travelers,
+    adultsCount: party.adultsCount,
+    childrenCount: party.childrenCount,
+    adultAges: asNumberList(raw?.adultAges),
+    childAges: asNumberList(raw?.childAges),
+  };
+}
+
 function normalizeIntake(raw: TravelRequest["intake"]): TripIntake | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   return {
@@ -77,13 +145,27 @@ function normalizeIntake(raw: TravelRequest["intake"]): TripIntake | undefined {
 
 function normalizeRequest(raw: TravelRequest): TravelRequest {
   const tripRef = raw.tripRef || raw.accessCode || createId("trip").slice(-8).toUpperCase();
+  const installmentPlanActive =
+    asBoolean(raw.installmentPlanActive) ||
+    isLegacyInstallmentPlanStatus(raw.paymentStatus);
+  const paymentPlanType = derivePaymentPlanType({
+    paymentPlanType: raw.paymentPlanType,
+    installmentPlanActive,
+  });
+  const paymentSchedule = Array.isArray(raw.paymentSchedule)
+    ? raw.paymentSchedule
+        .map((item) => normalizeInstallment(item))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : [];
+
   return {
     ...raw,
     tripRef,
     paymentStatus: asPaymentStatus(raw.paymentStatus),
     installmentPlanActive:
-      asBoolean(raw.installmentPlanActive) ||
-      isLegacyInstallmentPlanStatus(raw.paymentStatus),
+      installmentPlanActive || paymentPlanActive(paymentPlanType),
+    paymentPlanType,
+    paymentSchedule,
     assignedAgentId: raw.assignedAgentId
       ? normalizeAssignedAgentId(raw.assignedAgentId)
       : assignedAgentIdForPreference(raw.trip?.preferredAgent),
@@ -92,14 +174,10 @@ function normalizeRequest(raw: TravelRequest): TravelRequest {
     refundedAt: asIsoDate(raw.refundedAt),
     quotes: Array.isArray(raw.quotes) ? raw.quotes : [],
     options: Array.isArray(raw.options) ? raw.options : [],
-    messages: Array.isArray(raw.messages) ? raw.messages : [],
+    messages: normalizeMessages(raw.messages),
     clienteaseRef: raw.clienteaseRef ?? null,
     intake: normalizeIntake(raw.intake),
-    trip: {
-      ...raw.trip,
-      tripType: asTripType(raw.trip?.tripType),
-      tripStyle: Array.isArray(raw.trip?.tripStyle) ? raw.trip.tripStyle : [],
-    },
+    trip: normalizeTrip(raw.trip),
   };
 }
 
@@ -131,6 +209,8 @@ export function readRequests(): TravelRequest[] {
       (request) =>
         isLegacyInstallmentPlanStatus(request.paymentStatus) ||
         typeof request.installmentPlanActive !== "boolean" ||
+        !request.paymentPlanType ||
+        !Array.isArray(request.paymentSchedule) ||
         typeof request.assignedAgentId !== "string" ||
         normalizeAssignedAgentId(request.assignedAgentId) !== request.assignedAgentId,
     );

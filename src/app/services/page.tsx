@@ -7,7 +7,7 @@ import { services, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Services",
-  description: `Explore ${site.name} services — cruises, vacation packages, and travel insurance.`,
+  description: `Explore ${site.name} services — travel insurance and keeping the trip close.`,
 };
 
 export default function ServicesPage() {
@@ -15,7 +15,7 @@ export default function ServicesPage() {
     <>
       <PageHero
         title="Services"
-        subtitle="Cruises, vacation packages, and trip protection — planned with care."
+        subtitle="Travel insurance and a way to bring the vacation home — planned with care."
         image="/images/travel-1.jpg"
       />
 
@@ -23,8 +23,8 @@ export default function ServicesPage() {
         <div className="mb-10 max-w-2xl">
           <h2 className="font-display text-3xl text-ink md:text-4xl">What we offer</h2>
           <p className="mt-3 text-muted">
-            Window-shop the kind of trip you want. Pricing and booking stay with
-            your agent so the personal piece does not get lost.
+            Window-shop cruises and vacation packages on the home page. Here are
+            the extras we include with planning.
           </p>
         </div>
 
@@ -56,8 +56,8 @@ export default function ServicesPage() {
         <div className="mt-12 rounded-3xl bg-cream p-8 md:p-10">
           <h3 className="font-display text-2xl text-ink">Ready for a quote?</h3>
           <p className="mt-2 max-w-xl text-muted">
-            Share your trip details. We follow up in your dashboard with options —
-            including add-ons like travel protection and an Aura frame.
+            Share a destination and who is traveling. We follow up in your
+            dashboard with options — including Allianz protection and an Aura frame.
           </p>
           <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
             Request a Quote

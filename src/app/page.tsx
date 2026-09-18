@@ -2,9 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { StartTravelButton } from "@/components/RequestModalProvider";
 import { assetPath } from "@/lib/asset";
-import { aura, vacationRegions } from "@/lib/destinations";
+import { cruisePackages, vacationRegions } from "@/lib/destinations";
 import { journeySteps } from "@/lib/journey";
-import { advisories, services, site } from "@/lib/site";
+import { advisories, services, site, travelAdvisoryUrl } from "@/lib/site";
 
 const promises = [
   {
@@ -86,11 +86,11 @@ export default function HomePage() {
               Window shop
             </p>
             <h2 className="font-display text-3xl text-ink md:text-4xl">
-              Africa, the Caribbean, and Europe
+              Cruises and vacation packages
             </h2>
             <p className="mt-3 text-muted">
-              Inspiration stays general so we never publish a price that changed
-              overnight. Click a region, then request a quote.
+              Predetermined starting points to spark interest. Request a quote from
+              a tile and we will pre-fill the destination.
             </p>
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
@@ -125,6 +125,44 @@ export default function HomePage() {
                       </StartTravelButton>
                     ))}
                   </div>
+                  <StartTravelButton
+                    destination={region.name}
+                    tripType="vacation_package"
+                    className="mt-5 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
+                  >
+                    Request a quote
+                  </StartTravelButton>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {cruisePackages.map((sailing) => (
+              <div
+                key={sailing.slug}
+                className="overflow-hidden rounded-[1.4rem] bg-surface shadow-[var(--shadow-soft)]"
+              >
+                <div className="relative h-48">
+                  <Image
+                    src={sailing.image}
+                    alt={sailing.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold-deep">
+                    {sailing.eyebrow}
+                  </p>
+                  <h3 className="mt-1 font-display text-2xl text-ink">{sailing.name}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{sailing.summary}</p>
+                  <StartTravelButton
+                    destination={sailing.destination}
+                    tripType="cruise"
+                    className="mt-5 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
+                  >
+                    Request a quote
+                  </StartTravelButton>
                 </div>
               </div>
             ))}
@@ -140,7 +178,7 @@ export default function HomePage() {
               href="/cruises"
               className="text-sm font-semibold text-gold-deep underline underline-offset-4"
             >
-              Cruises, kept separate
+              Cruises
             </Link>
           </div>
         </div>
@@ -152,7 +190,7 @@ export default function HomePage() {
             Services
           </p>
           <h2 className="font-display text-3xl text-ink md:text-4xl">
-            What we plan with you
+            Travel insurance and keeping the trip close
           </h2>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -178,39 +216,6 @@ export default function HomePage() {
               </div>
             </Link>
           ))}
-        </div>
-      </section>
-
-      <section className="bg-cream">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-20 md:grid-cols-2 md:px-8 md:py-24">
-          <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gold-deep">
-              Enhance your trip
-            </p>
-            <h2 className="font-display text-3xl text-ink md:text-4xl">
-              {aura.headline}
-            </h2>
-            <p className="mt-4 leading-relaxed text-muted">{aura.summary}</p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/enhance-your-trip"
-                className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
-              >
-                See the Aura add-on
-              </Link>
-              <StartTravelButton className="rounded-full border border-line bg-surface px-6 py-3 text-sm font-semibold text-ink">
-                Add it to a quote
-              </StartTravelButton>
-            </div>
-          </div>
-          <div className="relative min-h-[320px] overflow-hidden rounded-[1.6rem]">
-            <Image
-              src={assetPath("/images/travel-2.jpg")}
-              alt="Travel memories"
-              fill
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
@@ -282,12 +287,22 @@ export default function HomePage() {
             </h2>
             <p className="mt-3 text-muted">Notes worth reading before you fly.</p>
           </div>
-          <Link
-            href="/updates"
-            className="text-sm font-semibold text-gold-deep underline underline-offset-4"
-          >
-            View all updates
-          </Link>
+          <div className="flex flex-wrap gap-4">
+            <a
+              href={travelAdvisoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-gold-deep underline underline-offset-4"
+            >
+              Official U.S. travel advisories
+            </a>
+            <Link
+              href="/updates"
+              className="text-sm font-semibold text-gold-deep underline underline-offset-4"
+            >
+              View all updates
+            </Link>
+          </div>
         </div>
         <div className="grid gap-8 md:grid-cols-3">
           {advisories.map((item) => (
@@ -302,6 +317,16 @@ export default function HomePage() {
               </div>
               <h3 className="font-display text-lg text-ink">{item.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">{item.text}</p>
+              {"href" in item && item.href ? (
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-block text-sm font-semibold text-gold-deep underline underline-offset-4"
+                >
+                  Read the official advisory
+                </a>
+              ) : null}
             </article>
           ))}
         </div>

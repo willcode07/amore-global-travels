@@ -211,6 +211,8 @@ function requestFixture(): TravelRequest {
     progressStatus: "submitted",
     paymentStatus: "not_requested",
     installmentPlanActive: false,
+    paymentPlanType: "none",
+    paymentSchedule: [],
     assignedAgentId: "shonya",
     paymentNote: "",
     createdAt: "2027-01-01T00:00:00.000Z",
@@ -313,11 +315,13 @@ test("legacy installment-plan payment statuses migrate to an independent flag", 
     const migrated = readRequests()[0];
     assert.equal(migrated.paymentStatus, "not_requested");
     assert.equal(migrated.installmentPlanActive, true);
+    assert.equal(migrated.paymentPlanType, "installments");
     assert.equal(migrated.assignedAgentId, "shonya");
 
     const persisted = JSON.parse(storage.getItem("amore_travel_requests") ?? "{}");
     assert.equal(persisted.requests[0].paymentStatus, "not_requested");
     assert.equal(persisted.requests[0].installmentPlanActive, true);
+    assert.equal(persisted.requests[0].paymentPlanType, "installments");
   } finally {
     if (previousWindow) {
       Object.defineProperty(globalThis, "window", previousWindow);
@@ -325,6 +329,47 @@ test("legacy installment-plan payment statuses migrate to an independent flag", 
       Reflect.deleteProperty(globalThis, "window");
     }
   }
+});
+
+test("installment payment plans store plan type and multiple due dates", () => {
+  const updated = applyUpdate(requestFixture(), {
+    paymentPlanType: "installments",
+    paymentSchedule: [
+      {
+        id: "pay_1",
+        label: "Deposit",
+        dueDate: "2027-03-01",
+        amount: "$400",
+        status: "paid",
+        paidAt: "2027-02-20",
+      },
+      {
+        id: "pay_2",
+        label: "Second payment",
+        dueDate: "2027-04-01",
+        amount: "$400",
+        status: "scheduled",
+      },
+      {
+        id: "pay_3",
+        label: "Final payment",
+        dueDate: "2027-05-01",
+        amount: "$400",
+        status: "scheduled",
+      },
+    ],
+  });
+
+  assert.equal(updated.paymentPlanType, "installments");
+  assert.equal(updated.installmentPlanActive, true);
+  assert.equal(updated.paymentSchedule.length, 3);
+  assert.equal(updated.paymentSchedule[0]?.dueDate, "2027-03-01");
+  assert.equal(updated.paymentSchedule[2]?.label, "Final payment");
+
+  const cleared = applyUpdate(updated, { paymentPlanType: "pay_in_full" });
+  assert.equal(cleared.paymentPlanType, "pay_in_full");
+  assert.equal(cleared.installmentPlanActive, false);
+  assert.equal(cleared.paymentSchedule.length, 0);
 });
 
 test("three persistent QA sample travel quotes seed without duplication", () => {

@@ -1,15 +1,40 @@
 import {
-  installmentPlanLabel,
   paymentLabels,
   statusLabels,
   tripTypeLabels,
 } from "@/lib/agents";
+import {
+  paymentPlanTypeLabels,
+  scheduleSummary,
+} from "@/lib/payments";
 import { TravelRequest } from "@/lib/types";
 
 function csvCell(value: string | number | undefined) {
   const text = String(value ?? "");
   if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
+}
+
+function paymentPlanCell(request: TravelRequest) {
+  const type = request.paymentPlanType ?? "none";
+  if (type === "none" && !request.installmentPlanActive) return "";
+  return paymentPlanTypeLabels[type];
+}
+
+function paymentDatesCell(request: TravelRequest) {
+  const schedule = request.paymentSchedule ?? [];
+  if (!schedule.length) return "";
+  return schedule
+    .map((item) => {
+      const bits = [
+        item.label || "Payment",
+        item.dueDate || "",
+        item.amount || "",
+        item.status,
+      ].filter(Boolean);
+      return bits.join(" ");
+    })
+    .join("; ");
 }
 
 export function requestsToCsv(requests: TravelRequest[]) {
@@ -19,7 +44,9 @@ export function requestsToCsv(requests: TravelRequest[]) {
     "Updated",
     "Status",
     "Payment status",
-    installmentPlanLabel,
+    "Payment plan type",
+    "Payment schedule",
+    "Payment schedule summary",
     "Payment date",
     "Payment note",
     "Traveler",
@@ -42,7 +69,9 @@ export function requestsToCsv(requests: TravelRequest[]) {
     request.updatedAt,
     statusLabels[request.status] ?? request.status,
     paymentLabels[request.paymentStatus] ?? request.paymentStatus,
-    request.installmentPlanActive ? "Active" : "",
+    paymentPlanCell(request),
+    paymentDatesCell(request),
+    scheduleSummary(request),
     request.paymentStatus === "refunded"
       ? request.refundedAt ?? ""
       : request.paidAt ?? "",
@@ -81,7 +110,9 @@ export function confirmedTripsToCsv(requests: TravelRequest[]) {
     "Selected quote",
     "Quote total",
     "Payment status",
-    installmentPlanLabel,
+    "Payment plan type",
+    "Payment schedule",
+    "Payment schedule summary",
     "Payment date",
     "Payment note",
     "Confirmed at",
@@ -103,7 +134,9 @@ export function confirmedTripsToCsv(requests: TravelRequest[]) {
       quote?.occasionTitle ?? "",
       quote?.investmentTotal ?? "",
       paymentLabels[request.paymentStatus] ?? request.paymentStatus,
-      request.installmentPlanActive ? "Active" : "",
+      paymentPlanCell(request),
+      paymentDatesCell(request),
+      scheduleSummary(request),
       request.paymentStatus === "refunded"
         ? request.refundedAt ?? ""
         : request.paidAt ?? "",

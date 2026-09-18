@@ -17,7 +17,7 @@ export default function RequestAQuotePage() {
     <>
       <PageHero
         title="Request a Quote"
-        subtitle="Share your trip details and we'll research options for your dashboard."
+        subtitle="Share a destination, dates, and who is traveling. We'll research options for your dashboard."
         image="/images/hero.jpeg"
       />
 
@@ -25,8 +25,8 @@ export default function RequestAQuotePage() {
         <div className="rounded-3xl bg-cream p-8 text-center md:p-10">
           <h2 className="font-display text-3xl text-ink">Request your trip</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted">
-            Start with a short quote request. Then open your dashboard and complete
-            the full trip details form so your agent can write a quote.
+            Start with a short quote request. An agent will follow up, usually
+            within 24 hours, with options in your dashboard.
           </p>
           <StartTravelButton className="mt-8 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
             Request a Quote

@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { PlaceSuggestInput } from "@/components/PlaceSuggestInput";
+import { PhoneField } from "@/components/PhoneField";
 import {
   agents,
   contactMethodOptions,
@@ -316,26 +317,16 @@ export function QuoteIntakeForm({
           error={fieldErrors.lastName}
         />
       </div>
-      <div>
-        <PlaceSuggestInput
-          kind="address"
-          name="address1"
-          label="Address 1"
-          value={address1}
-          onChange={setAddress1}
-          onResolved={(place) => {
-            setAddress1(place.address1 || place.label);
-            if (place.city) setCity(place.city);
-            if (place.state) setState(place.state);
-            if (place.zip) setZip(place.zip);
-          }}
-          placeholder="Start typing a street address"
-          required
-        />
-        {fieldErrors.address1 ? (
-          <p className="mt-1 text-xs text-red-700">{fieldErrors.address1}</p>
-        ) : null}
-      </div>
+      <Field
+        label="Address 1"
+        name="address1"
+        value={address1}
+        onChange={setAddress1}
+        autoComplete="street-address"
+        placeholder="Street address"
+        required
+        error={fieldErrors.address1}
+      />
       <Field
         label="Address 2"
         name="address2"
@@ -344,24 +335,16 @@ export function QuoteIntakeForm({
         autoComplete="address-line2"
       />
       <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <PlaceSuggestInput
-            kind="city"
-            name="city"
-            label="City"
-            value={city}
-            onChange={setCity}
-            onResolved={(place) => {
-              setCity(place.city || place.label.split(",")[0]?.trim() || place.label);
-              if (place.state) setState(place.state);
-            }}
-            placeholder="City"
-            required
-          />
-          {fieldErrors.city ? (
-            <p className="mt-1 text-xs text-red-700">{fieldErrors.city}</p>
-          ) : null}
-        </div>
+        <Field
+          label="City"
+          name="city"
+          value={city}
+          onChange={setCity}
+          autoComplete="address-level2"
+          placeholder="City"
+          required
+          error={fieldErrors.city}
+        />
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium text-ink">State *</span>
           <select
@@ -410,16 +393,13 @@ export function QuoteIntakeForm({
         </label>
       </div>
       <p className="-mt-1 text-xs text-muted">
-        Pick a suggested address or city to fill city, state, and ZIP.
+        ZIP fills city and state when it matches a US code.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
+        <PhoneField
           label="Phone number"
-          name="phone"
-          type="tel"
           value={phone}
           onChange={setPhone}
-          autoComplete="tel"
           required
           error={fieldErrors.phone}
         />
@@ -600,7 +580,7 @@ export function QuoteIntakeForm({
             ) : null}
           </label>
           <label className="block text-sm">
-            <span className="mb-1.5 block font-medium text-ink">Children (under 18)</span>
+            <span className="mb-1.5 block font-medium text-ink">Children (17 and under)</span>
             <input
               name="childrenCount"
               type="number"

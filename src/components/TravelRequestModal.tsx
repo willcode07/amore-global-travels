@@ -3,7 +3,16 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlaceSuggestInput } from "@/components/PlaceSuggestInput";
+import { PhoneField } from "@/components/PhoneField";
 import { agents, budgetOptions, tripTypeOptions } from "@/lib/agents";
+import {
+  ADULT_MIN_AGE,
+  CHILD_MAX_AGE,
+  parseAgeList,
+  resizeList,
+  validateQuotePartyAges,
+} from "@/lib/intake";
+import { validateStoredPhone } from "@/lib/phone";
 import { createRequest } from "@/lib/requests";
 import { readSession } from "@/lib/session";
 import { TripType } from "@/lib/types";
@@ -67,6 +76,10 @@ export function TravelRequestModal({
   const [departureCity, setDepartureCity] = useState("");
   const [departureDate, setDepartureDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
+  const [adultsCount, setAdultsCount] = useState("2");
+  const [childrenCount, setChildrenCount] = useState("0");
+  const [adultAges, setAdultAges] = useState<string[]>(["", ""]);
+  const [childAges, setChildAges] = useState<string[]>([]);
   const minDate = useMemo(() => todayIso(), []);
 
   useEffect(() => {
@@ -87,6 +100,10 @@ export function TravelRequestModal({
       setDepartureDate("");
       setReturnDate("");
       setDepartureCity("");
+      setAdultsCount("2");
+      setChildrenCount("0");
+      setAdultAges(["", ""]);
+      setChildAges([]);
       return;
     }
 
@@ -100,7 +117,39 @@ export function TravelRequestModal({
     setTripType(prefill?.tripType ?? "not_sure");
   }, [open, prefill?.destination, prefill?.tripType]);
 
+  function validateStep(current: number) {
+    if (current === 1) {
+      if (!firstName.trim() || !lastName.trim()) {
+        return "Enter your first and last name.";
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return "Enter a valid email address.";
+      }
+      return validateStoredPhone(phone) || "";
+    }
+
+    if (current === 2) {
+      if (!destination.trim()) return "Enter a destination.";
+      const adults = Number(adultsCount);
+      const children = Number(childrenCount);
+      const partyErrors = validateQuotePartyAges({
+        adultsCount: adults,
+        childrenCount: children,
+        adultAges,
+        childAges,
+      });
+      return partyErrors[0] ?? "";
+    }
+
+    return "";
+  }
+
   function goNext() {
+    const message = validateStep(step);
+    if (message) {
+      setError(message);
+      return;
+    }
     setError("");
     setStep((current) => Math.min(current + 1, 3));
   }
@@ -112,11 +161,21 @@ export function TravelRequestModal({
       return;
     }
 
+    const contactError = validateStep(1);
+    const tripError = validateStep(2);
+    if (contactError || tripError) {
+      setError(contactError || tripError);
+      setStep(contactError ? 1 : 2);
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     const form = new FormData(event.currentTarget);
     const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    const adults = Number(adultsCount);
+    const children = Number(childrenCount);
 
     try {
       const request = await createRequest({
@@ -126,7 +185,11 @@ export function TravelRequestModal({
         destination,
         departureCity,
         travelWindow: formatTravelWindow(departureDate, returnDate),
-        travelers: String(form.get("travelers") ?? "1"),
+        travelers: adults + children,
+        adultsCount: adults,
+        childrenCount: children,
+        adultAges: parseAgeList(adultAges),
+        childAges: parseAgeList(childAges),
         budget: String(form.get("budget") ?? ""),
         preferredAgent: String(form.get("preferredAgent") ?? ""),
         preferences: String(form.get("preferences") ?? ""),
@@ -189,8 +252,12 @@ export function TravelRequestModal({
                   You&apos;re in, {resultName.split(" ")[0]}!
                 </h3>
                 <p className="mt-2 text-sm text-muted">
-                  Your dashboard is tied to this email and phone number. Come back
-                  anytime to see every quote in one place — no access codes to remember.
+                  Your quote request has been received. An agent will follow up,
+                  usually within 24 hours, with options in this dashboard.
+                </p>
+                <p className="mt-3 text-sm text-muted">
+                  You don&apos;t need to do anything else right now. Extra details
+                  like address and birth dates can wait until you choose an option.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -246,7 +313,7 @@ export function TravelRequestModal({
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm">
-                    <span className="mb-1.5 block font-medium text-ink">Email</span>
+                    <span className="mb-1.5 block font-medium text-ink">Email *</span>
                     <input
                       type="email"
                       value={email}
@@ -255,18 +322,15 @@ export function TravelRequestModal({
                       className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
                     />
                   </label>
-                  <label className="block text-sm">
-                    <span className="mb-1.5 block font-medium text-ink">Phone</span>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="Used with email to open your dashboard"
-                      autoComplete="tel"
-                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-                    />
-                  </label>
+                  <PhoneField
+                    label="Phone"
+                    value={phone}
+                    onChange={setPhone}
+                    required
+                    hint="Country code plus number — used with email to open your dashboard."
+                  />
                 </div>
+                {error && step === 1 ? <p className="text-sm text-red-700">{error}</p> : null}
                 <button
                   type="button"
                   onClick={goNext}
@@ -307,14 +371,117 @@ export function TravelRequestModal({
                     onChange={setDepartureCity}
                     placeholder="Atlanta, Miami..."
                   />
-                  <Field
-                    label="Number of travelers"
-                    name="travelers"
-                    type="number"
-                    min="1"
-                    defaultValue="2"
-                  />
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">Budget range</span>
+                    <select
+                      name="budget"
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                      defaultValue={budgetOptions[1]}
+                    >
+                      {budgetOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">Adults *</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={adultsCount}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setAdultsCount(value);
+                        const count = Number(value);
+                        if (Number.isInteger(count) && count >= 1 && count <= 12) {
+                          setAdultAges((current) => resizeList(current, count, ""));
+                        }
+                      }}
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-medium text-ink">
+                      Children (17 and under)
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={12}
+                      value={childrenCount}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setChildrenCount(value);
+                        const count = Number(value);
+                        if (Number.isInteger(count) && count >= 0 && count <= 12) {
+                          setChildAges((current) => resizeList(current, count, ""));
+                        }
+                      }}
+                      className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-muted">
+                  Ages as of the travel date help us quote kids, seniors, and
+                  adults-only resorts. Children are 17 and under.
+                </p>
+                {adultAges.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {adultAges.map((age, index) => (
+                      <label key={`adult-age-${index}`} className="block text-sm">
+                        <span className="mb-1.5 block font-medium text-ink">
+                          Adult {index + 1} age *
+                        </span>
+                        <input
+                          type="number"
+                          min={ADULT_MIN_AGE}
+                          max={120}
+                          value={age}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setAdultAges((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? next : item,
+                              ),
+                            );
+                          }}
+                          className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                {childAges.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {childAges.map((age, index) => (
+                      <label key={`child-age-${index}`} className="block text-sm">
+                        <span className="mb-1.5 block font-medium text-ink">
+                          Child {index + 1} age *
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={CHILD_MAX_AGE}
+                          value={age}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setChildAges((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? next : item,
+                              ),
+                            );
+                          }}
+                          className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm">
                     <span className="mb-1.5 block font-medium text-ink">
@@ -350,20 +517,7 @@ export function TravelRequestModal({
                 <p className="text-xs text-muted">
                   Leave dates blank if the window is still flexible.
                 </p>
-                <label className="block text-sm">
-                  <span className="mb-1.5 block font-medium text-ink">Budget range</span>
-                  <select
-                    name="budget"
-                    className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-                    defaultValue={budgetOptions[1]}
-                  >
-                    {budgetOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {error && step === 2 ? <p className="text-sm text-red-700">{error}</p> : null}
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -438,35 +592,5 @@ export function TravelRequestModal({
         </div>
       </div>
     </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  type = "text",
-  placeholder,
-  min,
-  defaultValue,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  placeholder?: string;
-  min?: string;
-  defaultValue?: string;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block font-medium text-ink">{label}</span>
-      <input
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        min={min}
-        defaultValue={defaultValue}
-        className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
-      />
-    </label>
   );
 }

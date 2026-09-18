@@ -71,9 +71,9 @@ export function ResearchEvidencePanel({
         <div>
           <p className="font-display text-xl text-ink">Supplier research</p>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Search in a new tab, then record only the result you have personally
-            verified. Search results stay preliminary until approved and are never
-            treated as bookable rates automatically.
+            These buttons open Google with this trip’s dates, destination, and
+            party already filled in. Search in a new tab, then record only the
+            result you have personally verified.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -83,9 +83,9 @@ export function ResearchEvidencePanel({
               href={link.url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-gold-deep"
+              className="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-on-gold"
             >
-              {link.label}
+              {link.label} →
             </a>
           ))}
         </div>

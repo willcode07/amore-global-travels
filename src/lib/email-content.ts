@@ -65,7 +65,7 @@ export function buildNotificationEmails(
         "",
         `Thanks for starting your travel request with ${site.name}.`,
         "Use the same email and phone number anytime to open your trip dashboard.",
-        "Next, complete your trip details there — we need that before we can write a quote.",
+        "An agent will follow up, usually within 24 hours, with options in that dashboard.",
         "",
         dashboardUrl(request),
         "",
@@ -104,7 +104,7 @@ export function buildNotificationEmails(
         `Travel window: ${request.trip.travelWindow}`,
         `Trip reference: ${tripRef}`,
         "",
-        `You can now write a quote. Open agent inbox: ${agentInboxUrl()}`,
+        `Open agent inbox: ${agentInboxUrl()}`,
       ].join("\n"),
     });
   }

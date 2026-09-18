@@ -4,8 +4,8 @@ import { PageHero } from "@/components/PageHero";
 import { StartTravelButton } from "@/components/RequestModalProvider";
 
 export const metadata: Metadata = {
-  title: "Insurance",
-  description: "Travel insurance that protects your tour and keeps journeys memorable.",
+  title: "Travel Insurance",
+  description: "Allianz travel insurance that protects your trip and keeps journeys memorable.",
 };
 
 const offerings = [
@@ -27,8 +27,8 @@ export default function InsurancePage() {
   return (
     <>
       <PageHero
-        title="Insurance"
-        subtitle="We protect the trip you just got excited about."
+        title="Travel Insurance"
+        subtitle="Allianz coverage, explained on your quote — not a separate shopping errand."
         image="/images/about.jpeg"
       />
 
@@ -38,9 +38,10 @@ export default function InsurancePage() {
             Trip protection, on the quote
           </h2>
           <p className="mt-4 leading-relaxed text-muted">
-            Travel insurance is part of how we plan — not a separate shopping
-            errand. Ask for it on your request, or we will include typical Allianz
-            options on the written proposal so you can choose a tier.
+            Travel insurance is part of how we plan. Allianz options sit on the
+            written proposal so you can see what each tier covers next to the trip
+            itself. Ask for it on your request, or we will include typical options
+            when we quote.
           </p>
         </div>
 

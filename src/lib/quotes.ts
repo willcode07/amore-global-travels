@@ -1,11 +1,11 @@
 import { tripTypeLabels } from "@/lib/agents";
 import { assetPath } from "@/lib/asset";
 import {
+  formatAgeList,
   formatDobList,
-  formatPartySummary,
+  formatRequestParty,
   formatTravelWindow,
   splitFullName,
-  travelerCountFromIntake,
 } from "@/lib/intake";
 import { createId } from "@/lib/store";
 import {
@@ -90,12 +90,7 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
       request.trip.travelWindow,
     ) || request.trip.travelWindow;
   const nights = nightsBetween(intake?.departureDate ?? "", intake?.returnDate ?? "");
-  const partyCount = intake
-    ? travelerCountFromIntake(intake) || request.trip.travelers
-    : request.trip.travelers;
-  const travelersLabel = intake
-    ? formatPartySummary(intake)
-    : `${partyCount || 1} traveler${partyCount === 1 ? "" : "s"}`;
+  const travelersLabel = formatRequestParty(request);
   const route = departureCity ? `${departureCity} → ${destination}` : destination;
   const wantsFlight = hasMode(intake?.transportationModes, "flight");
   const wantsRental = hasMode(intake?.transportationModes, "rental");
@@ -124,10 +119,14 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
       : "",
     intake?.adultDobs?.some(Boolean)
       ? `Adult DOBs on file: ${formatDobList(intake.adultDobs)}`
-      : "",
+      : request.trip.adultAges?.length
+        ? `Adult ages: ${formatAgeList(request.trip.adultAges)}`
+        : "",
     intake?.childDobs?.some(Boolean)
       ? `Child DOBs on file: ${formatDobList(intake.childDobs)}`
-      : "",
+      : request.trip.childAges?.length
+        ? `Child ages (17 and under): ${formatAgeList(request.trip.childAges)}`
+        : "",
     request.trip.tripStyle.length
       ? `Requested trip style: ${request.trip.tripStyle.join(", ")}`
       : "",

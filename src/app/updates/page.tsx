@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { PageHero } from "@/components/PageHero";
-import { advisories, site } from "@/lib/site";
+import { advisories, site, travelAdvisoryUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Updates & Advisories",
@@ -18,6 +18,17 @@ export default function UpdatesPage() {
       />
 
       <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-20">
+        <p className="mb-10 max-w-2xl text-sm text-muted">
+          Notes from the road, plus a link to official U.S. travel advisories.{" "}
+          <a
+            href={travelAdvisoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-gold-deep underline underline-offset-4"
+          >
+            travel.state.gov
+          </a>
+        </p>
         <div className="grid gap-6 md:grid-cols-3">
           {advisories.map((item) => (
             <article
@@ -30,6 +41,16 @@ export default function UpdatesPage() {
               <div className="p-5">
                 <h2 className="font-display text-lg text-ink">{item.title}</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted">{item.text}</p>
+                {"href" in item && item.href ? (
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-block text-sm font-semibold text-gold-deep underline underline-offset-4"
+                  >
+                    Official advisory
+                  </a>
+                ) : null}
               </div>
             </article>
           ))}

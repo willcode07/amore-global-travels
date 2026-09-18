@@ -29,38 +29,36 @@ export const navLinks: NavLink[] = [
 
 export const services = [
   {
-    href: "/cruises",
-    title: "Cruises",
-    description:
-      "Group sailings and private cruise planning — an agent builds the itinerary with you.",
-    image: assetPath("/images/travel-1.jpg"),
-  },
-  {
-    href: "/vacation-packages",
-    title: "Vacation Packages",
-    description:
-      "Africa, the Caribbean, and Europe — generalized inspiration, then a custom quote.",
-    image: assetPath("/images/caribbean.jpeg"),
-  },
-  {
     href: "/insurance",
     title: "Travel Insurance",
     description:
-      "Trip protection we can include in your quote so the unexpected does not become unpaid.",
+      "Allianz trip protection we can include on your quote so the unexpected does not become unpaid.",
     image: assetPath("/images/about.jpeg"),
   },
+  {
+    href: "/enhance-your-trip",
+    title: "Bring the trip home",
+    description:
+      "An Aura digital frame keeps vacation photos moving for everyone on the trip — we can add it to your quote.",
+    image: assetPath("/images/travel-2.jpg"),
+  },
 ];
+
+export const travelAdvisoryUrl =
+  "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html";
 
 export const advisories = [
   {
     title: "Planning travel to Africa",
     text: "Entry rules and health guidance change. We confirm the current picture before you book — not after.",
     image: assetPath("/images/about.jpeg"),
+    href: travelAdvisoryUrl,
   },
   {
     title: "Caribbean peak season",
     text: "Winter sun fills up. Share your window early and we will hold the right room mix for your group.",
     image: assetPath("/images/caribbean.jpeg"),
+    href: travelAdvisoryUrl,
   },
   {
     title: "First-time flyers",
