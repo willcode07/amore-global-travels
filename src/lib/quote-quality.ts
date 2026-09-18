@@ -1,4 +1,5 @@
 import type { TravelProposal } from "@/lib/types";
+import { isUsableImageUrl } from "@/lib/quote-media";
 
 type MoneyUnknownReason = "blank" | "placeholder" | "invalid";
 
@@ -207,6 +208,21 @@ function researchField(id: string, field?: string): QuoteQualityField {
   return `researchEvidence.${id}${field ? `.${field}` : ""}`;
 }
 
+export function calculatedStayTotal(quote: TravelProposal) {
+  const rows = (quote.investmentLines ?? []).filter(
+    (line) => hasText(line.label) || hasText(line.amount),
+  );
+  if (rows.length === 0) return null;
+  const parsed = rows.map((line) => parseMoneyDetails(line.amount));
+  if (parsed.some((item) => item.value === null)) return null;
+  if (hasMixedCurrencies(parsed)) return null;
+  const cents = parsed.reduce((total, line) => total + toCents(line.value ?? 0), 0);
+  return formatCalculatedTotal(
+    cents,
+    parsed.map((line) => line.raw),
+  );
+}
+
 /**
  * Evaluates a proposal without changing it. `autoFixes` only contains a
  * calculated investment-total patch when every visible investment line is known.
@@ -219,7 +235,8 @@ export function evaluateQuoteQuality(quote: TravelProposal): QuoteQualityResult 
   const pdfUrl = quote.pdfUrl?.trim() ?? "";
   const hasMedia = Boolean(flyerUrl || pdfUrl);
   const hasProperty = hasRequiredText(quote.resortName);
-  const isFullQuote = hasProperty || !hasMedia;
+  const isMediaQuote = quote.quoteKind === "media" || (hasMedia && !hasProperty);
+  const isFullQuote = !isMediaQuote;
   const evidence = quote.researchEvidence ?? [];
 
   const requiredBasics: Array<[QuoteQualityField, string, string]> = [
@@ -236,16 +253,20 @@ export function evaluateQuoteQuality(quote: TravelProposal): QuoteQualityResult 
   if (!hasProperty && !hasMedia) {
     errors.push(
       issue(
-        "property-or-flyer-required",
-        "resortName",
-        "Add a property or ship, or attach a media/flyer quote.",
-        ["flyerUrl"],
+        isMediaQuote ? "flyer-required" : "property-or-flyer-required",
+        isMediaQuote ? "flyerUrl" : "resortName",
+        isMediaQuote
+          ? "Attach a Canva, PDF, or image flyer before sending."
+          : "Add a property or ship, or attach a media/flyer quote.",
+        isMediaQuote ? ["flyerUrl"] : ["flyerUrl"],
       ),
     );
   }
 
   const approvedEvidence = evidence.filter((item) => item.status === "approved");
-  evidence.forEach((item, index) => {
+  const recordResearch = Boolean(quote.recordResearch);
+  if (recordResearch) {
+    evidence.forEach((item, index) => {
     const prefix = researchField(item.id);
     if (!hasRequiredText(item.supplier)) {
       errors.push(
@@ -371,6 +392,7 @@ export function evaluateQuoteQuality(quote: TravelProposal): QuoteQualityResult 
         ["enhancements"],
       ),
     );
+  }
   }
 
   const investmentLines = quote.investmentLines ?? [];
@@ -671,17 +693,26 @@ export function evaluateQuoteQuality(quote: TravelProposal): QuoteQualityResult 
   }
 
   if (isFullQuote && !hasRequiredText(quote.nights)) {
-    errors.push(issue("nights-required", "nights", "Add the number of nights."));
+    warnings.push(issue("nights-required", "nights", "Add the number of nights if you know them."));
   }
   if (isFullQuote && !hasRequiredText(quote.route)) {
-    errors.push(issue("route-required", "route", "Add the route or departure city."));
+    warnings.push(issue("route-required", "route", "Add the route or departure city if you know it."));
   }
   if (isFullQuote && !hasRequiredText(quote.roomType)) {
     errors.push(issue("room-type-required", "roomType", "Add the room or cabin type."));
   }
   if (isFullQuote && !hasRequiredText(quote.roomDetails)) {
+    warnings.push(
+      issue("room-details-missing", "roomDetails", "A few room or cabin details help the traveler."),
+    );
+  }
+  if (hasText(quote.resortImageUrl) && !isUsableImageUrl(quote.resortImageUrl)) {
     errors.push(
-      issue("room-details-missing", "roomDetails", "Add a few details about the room or cabin."),
+      issue(
+        "property-image-invalid",
+        "resortImageUrl",
+        "That photo URL does not look like an image. Use a https:// link that ends in .jpg, .png, or .webp — or leave it blank.",
+      ),
     );
   }
   if (isFullQuote && !hasMedia && !hasText(quote.resortImageUrl)) {
@@ -689,7 +720,7 @@ export function evaluateQuoteQuality(quote: TravelProposal): QuoteQualityResult 
       issue(
         "property-image-missing",
         "resortImageUrl",
-        "Add a property image or attach a media/flyer quote.",
+        "Add a property photo URL, or send without a photo.",
         ["flyerUrl"],
       ),
     );

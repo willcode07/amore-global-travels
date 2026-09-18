@@ -67,6 +67,7 @@ export function TravelRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resultName, setResultName] = useState("");
+  const [resultTripId, setResultTripId] = useState("");
   const [tripType, setTripType] = useState<TripType>("not_sure");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -96,6 +97,7 @@ export function TravelRequestModal({
       setStep(1);
       setError("");
       setResultName("");
+      setResultTripId("");
       setSubmitting(false);
       setDepartureDate("");
       setReturnDate("");
@@ -185,6 +187,8 @@ export function TravelRequestModal({
         destination,
         departureCity,
         travelWindow: formatTravelWindow(departureDate, returnDate),
+        nickname: destination.trim(),
+        dateMode: departureDate || returnDate ? "fixed" : "flexible",
         travelers: adults + children,
         adultsCount: adults,
         childrenCount: children,
@@ -196,6 +200,7 @@ export function TravelRequestModal({
         tripType,
       });
       setResultName(request.traveler.fullName);
+      setResultTripId(request.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to submit request.");
     } finally {
@@ -266,7 +271,11 @@ export function TravelRequestModal({
                   className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                   onClick={() => {
                     onClose();
-                    router.push("/dashboard");
+                    router.push(
+                      resultTripId
+                        ? `/dashboard/?trip=${encodeURIComponent(resultTripId)}`
+                        : "/dashboard/",
+                    );
                   }}
                 >
                   Open my dashboard

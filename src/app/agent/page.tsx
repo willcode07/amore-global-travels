@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AgentClientDetails } from "@/components/AgentClientDetails";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MessageThread } from "@/components/MessageThread";
 import { PaymentPlanPanel } from "@/components/PaymentPlanPanel";
 import { QuoteComposer } from "@/components/QuoteComposer";
@@ -12,10 +13,21 @@ import {
   assignableAgents,
   defaultAssignedAgentId,
   normalizeAssignedAgentId,
+  parseAgentId,
   paymentLabels,
   paymentOrder,
   tripTypeLabels,
 } from "@/lib/agents";
+import {
+  AGENT_IDENTITY_KEY,
+  AGENT_UNLOCK_KEY,
+  confirmBlockedReason,
+  formatLastUpdated,
+  ownsRequest,
+  paymentConfirmCopy,
+  statusConfirmCopy,
+} from "@/lib/agent-desk";
+import { travelerUnreadCount } from "@/lib/message-read";
 import {
   paymentPlanTypeLabels,
   scheduleSummary,
@@ -35,6 +47,7 @@ import {
   journeyStageIndex,
   statusForJourneyStage,
   tripStatusSteps,
+  travelerFacingStatus,
   tripStatusTitle,
 } from "@/lib/journey";
 import {
@@ -61,10 +74,13 @@ import {
   TripType,
 } from "@/lib/types";
 
-const AGENT_KEY = "amore_agent_unlocked";
-const VIEWING_AS_KEY = "amore_agent_viewing_as";
-
 type QueueSort = "assigned" | "agent" | "traveler";
+type ComposerMode = "quote" | "flyer";
+type PendingConfirm =
+  | { kind: "status"; status: RequestStatus }
+  | { kind: "payment"; status: PaymentStatus }
+  | { kind: "move"; agentId: string }
+  | { kind: "take" };
 
 function todayInputDate() {
   const now = new Date();
@@ -84,6 +100,7 @@ function paymentDateFor(request: TravelRequest) {
 export default function AgentPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [passcode, setPasscode] = useState("");
+  const [loginAgentId, setLoginAgentId] = useState("");
   const [agentEmail, setAgentEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -97,11 +114,14 @@ export default function AgentPage() {
   const [saving, setSaving] = useState(false);
   const [showClientForms, setShowClientForms] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode>("quote");
+  const [editingQuote, setEditingQuote] = useState<TravelProposal | undefined>();
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState<DemoNotification[]>([]);
   const [viewingAgentId, setViewingAgentId] = useState(defaultAssignedAgentId);
   const [viewingAgentInitialized, setViewingAgentInitialized] = useState(false);
-  const [onlyMyAssignments, setOnlyMyAssignments] = useState(false);
+  const [onlyMyAssignments, setOnlyMyAssignments] = useState(true);
   const [queueSort, setQueueSort] = useState<QueueSort>("assigned");
   const [assignmentAlerts, setAssignmentAlerts] = useState<AgentAssignmentNotification[]>(
     [],
@@ -113,6 +133,8 @@ export default function AgentPage() {
     [requests, selectedId],
   );
   const selectedPaymentDate = selected ? paymentDateFor(selected) : "";
+  const ownsSelected = selected ? ownsRequest(selected, viewingAgentId) : false;
+  const searchActive = query.trim().length > 0;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -171,8 +193,13 @@ export default function AgentPage() {
         .catch(() => undefined);
       return;
     }
-    if (localStorage.getItem(AGENT_KEY) === "1") {
-      setUnlocked(true);
+    if (localStorage.getItem(AGENT_UNLOCK_KEY) === "1") {
+      const identity = parseAgentId(localStorage.getItem(AGENT_IDENTITY_KEY));
+      if (identity) {
+        setViewingAgentId(identity);
+        setLoginAgentId(identity);
+        setUnlocked(true);
+      }
     }
   }, []);
 
@@ -194,10 +221,17 @@ export default function AgentPage() {
       setViewingAgentInitialized(false);
       return;
     }
-    const stored = localStorage.getItem(VIEWING_AS_KEY);
-    const next = normalizeAssignedAgentId(stored);
-    if (stored !== next) localStorage.setItem(VIEWING_AS_KEY, next);
-    setViewingAgentId(next);
+    if (isApiBackend()) {
+      setViewingAgentInitialized(true);
+      return;
+    }
+    const stored = parseAgentId(localStorage.getItem(AGENT_IDENTITY_KEY));
+    if (!stored) {
+      setUnlocked(false);
+      setViewingAgentInitialized(false);
+      return;
+    }
+    setViewingAgentId(stored);
     setViewingAgentInitialized(true);
   }, [unlocked]);
 
@@ -208,12 +242,23 @@ export default function AgentPage() {
     setAssignmentAlerts(agentAssignmentNotifications(viewingAgentId));
   }, [unlocked, viewingAgentId, viewingAgentInitialized]);
 
+  useEffect(() => {
+    if (!selectedId || filtered.some((request) => request.id === selectedId)) return;
+    setComposing(false);
+    setEditingQuote(undefined);
+    if (searchActive && filtered.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId(filtered[0]?.id ?? null);
+  }, [filtered, searchActive, selectedId]);
+
   async function loadRequests() {
     try {
       const next = await listRequests();
       setRequests(next);
       setNotes(readNotifications());
-      if (!selectedId && next[0]) {
+      if (!searchActive && !selectedId && next[0]) {
         setSelectedId(next[0].id);
       }
     } catch (err) {
@@ -247,12 +292,20 @@ export default function AgentPage() {
       setError("Incorrect agent passcode.");
       return;
     }
-    localStorage.setItem(AGENT_KEY, "1");
+    const identity = parseAgentId(loginAgentId);
+    if (!identity) {
+      setError("Choose your name so the desk opens your files.");
+      return;
+    }
+    localStorage.setItem(AGENT_UNLOCK_KEY, "1");
+    localStorage.setItem(AGENT_IDENTITY_KEY, identity);
+    setViewingAgentId(identity);
     setUnlocked(true);
   }
 
   async function handleSignOut() {
-    localStorage.removeItem(AGENT_KEY);
+    localStorage.removeItem(AGENT_UNLOCK_KEY);
+    localStorage.removeItem(AGENT_IDENTITY_KEY);
     if (isApiBackend()) {
       resetApiAuthCache();
       await logoutApiSession();
@@ -260,18 +313,42 @@ export default function AgentPage() {
     setUnlocked(false);
     setRequests([]);
     setViewingAgentInitialized(false);
-    setOtpSent(false);
-    setOtpCode("");
-    setDemoCode("");
+    setLoginAgentId("");
   }
 
-  async function updateStatus(status: RequestStatus) {
-    if (!selected) return;
+  function deskAudit(action: string, detail?: string) {
+    return {
+      agentId: viewingAgentId,
+      agentName: agentNameForId(viewingAgentId),
+      action,
+      detail,
+    };
+  }
+
+  function requireOwnFile() {
+    if (!selected) return false;
+    if (ownsRequest(selected, viewingAgentId)) return true;
+    setError("This file belongs to another agent. Take it first if you need to work it.");
+    return false;
+  }
+
+  async function applyStatus(status: RequestStatus) {
+    if (!selected || !requireOwnFile()) return;
     if (journeyStageIndex(selected.status) === journeyStageIndex(status)) return;
+    if (status === "booking_confirmed") {
+      const reason = confirmBlockedReason(selected);
+      if (reason) {
+        setError(reason);
+        return;
+      }
+    }
     setSaving(true);
     setError("");
     try {
-      const updated = await updateRequest(selected.id, { status });
+      const updated = await updateRequest(selected.id, {
+        status,
+        audit: deskAudit("status", tripStatusTitle(status)),
+      });
       await loadRequests();
       setSelectedId(updated.id);
     } catch (err) {
@@ -281,18 +358,33 @@ export default function AgentPage() {
     }
   }
 
-  async function updatePayment(status: PaymentStatus) {
-    if (!selected) return;
+  function requestStatusChange(status: RequestStatus) {
+    if (!selected || !requireOwnFile()) return;
+    if (journeyStageIndex(selected.status) === journeyStageIndex(status)) return;
+    if (status === "booking_confirmed") {
+      const reason = confirmBlockedReason(selected);
+      if (reason) {
+        setError(reason);
+        return;
+      }
+      setPendingConfirm({ kind: "status", status });
+      return;
+    }
+    void applyStatus(status);
+  }
+
+  async function applyPayment(status: PaymentStatus) {
+    if (!selected || !requireOwnFile()) return;
     setSaving(true);
+    setError("");
     try {
       const updated = await updateRequest(selected.id, {
         paymentStatus: status,
-        ...(status === "paid"
-          ? { paidAt: selected.paidAt || todayInputDate() }
-          : {}),
+        ...(status === "paid" ? { paidAt: selected.paidAt || todayInputDate() } : {}),
         ...(status === "refunded"
           ? { refundedAt: selected.refundedAt || todayInputDate() }
           : {}),
+        audit: deskAudit("payment", paymentLabels[status]),
       });
       await loadRequests();
       setSelectedId(updated.id);
@@ -303,17 +395,27 @@ export default function AgentPage() {
     }
   }
 
+  function requestPaymentChange(status: PaymentStatus) {
+    if (!selected || !requireOwnFile()) return;
+    if (status === "paid" || status === "refunded") {
+      setPendingConfirm({ kind: "payment", status });
+      return;
+    }
+    void applyPayment(status);
+  }
+
   async function savePaymentPlan(input: {
     paymentPlanType: PaymentPlanType;
     paymentSchedule: InstallmentPayment[];
   }) {
-    if (!selected) return;
+    if (!selected || !requireOwnFile()) return;
     setSaving(true);
     setError("");
     try {
       const updated = await updateRequest(selected.id, {
         paymentPlanType: input.paymentPlanType,
         paymentSchedule: input.paymentSchedule,
+        audit: deskAudit("payment_plan", input.paymentPlanType),
       });
       await loadRequests();
       setSelectedId(updated.id);
@@ -336,27 +438,30 @@ export default function AgentPage() {
     setUnreadAssignmentIds([]);
   }
 
-  async function updateAssignedAgent(assignedAgentId: string) {
+  async function applyAssignedAgent(assignedAgentId: string) {
     if (!selected) return;
     const nextAgentId = normalizeAssignedAgentId(assignedAgentId);
     if (selected.assignedAgentId === nextAgentId) return;
     setSaving(true);
     setError("");
     try {
-      const updated = await updateRequest(selected.id, { assignedAgentId: nextAgentId });
+      const updated = await updateRequest(selected.id, {
+        assignedAgentId: nextAgentId,
+        audit: deskAudit("assign", agentNameForId(nextAgentId)),
+      });
       recordAgentAssignment(updated, updated.assignedAgentId);
       await loadRequests();
       setSelectedId(updated.id);
       refreshAssignmentAlerts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reassign this travel quote.");
+      setError(err instanceof Error ? err.message : "Unable to move this travel quote.");
     } finally {
       setSaving(false);
     }
   }
 
   async function savePaymentDetails() {
-    if (!selected) return;
+    if (!selected || !requireOwnFile()) return;
     setSaving(true);
     setError("");
     try {
@@ -364,6 +469,7 @@ export default function AgentPage() {
         paymentNote: paymentNote.trim(),
         ...(selected.paymentStatus === "paid" ? { paidAt: paymentDate } : {}),
         ...(selected.paymentStatus === "refunded" ? { refundedAt: paymentDate } : {}),
+        audit: deskAudit("payment_details"),
       });
       await loadRequests();
       setSelectedId(updated.id);
@@ -375,13 +481,14 @@ export default function AgentPage() {
   }
 
   async function saveClientIntake(data: QuoteIntakeFields, tripType: TripType) {
-    if (!selected) return;
+    if (!selected || !requireOwnFile()) return;
     const previousAgentId = selected.assignedAgentId;
     setSaving(true);
     setError("");
     try {
       const updated = await updateRequest(selected.id, {
         intake: toTripIntake(data, tripType, selected.intake?.completedAt),
+        audit: deskAudit("client_details"),
       });
       if (updated.assignedAgentId !== previousAgentId) {
         recordAgentAssignment(updated, updated.assignedAgentId);
@@ -398,7 +505,7 @@ export default function AgentPage() {
   }
 
   async function publishQuote(quote: TravelProposal) {
-    if (!selected) return;
+    if (!selected || !requireOwnFile()) return;
     const quality = evaluateQuoteQuality(quote);
     if (!quality.canPublish) {
       setError(
@@ -410,8 +517,12 @@ export default function AgentPage() {
     }
     setSaving(true);
     try {
-      const updated = await updateRequest(selected.id, { quote });
+      const updated = await updateRequest(selected.id, {
+        quote,
+        audit: deskAudit("quote", quote.occasionTitle),
+      });
       setComposing(false);
+      setEditingQuote(undefined);
       await loadRequests();
       setSelectedId(updated.id);
     } catch (err) {
@@ -461,14 +572,30 @@ export default function AgentPage() {
           ) : (
             <>
               <p className="mt-2 text-sm text-muted">
-                Simple passcode gate for the local / GitHub Pages demo.
+                Sign in with your name and the desk passcode. Your queue opens on files assigned to you.
               </p>
+              <label className="mt-6 block text-sm">
+                <span className="mb-1.5 block font-medium text-ink">Your name</span>
+                <select
+                  required
+                  value={loginAgentId}
+                  onChange={(event) => setLoginAgentId(event.target.value)}
+                  className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
+                >
+                  <option value="">Select your name</option>
+                  {assignableAgents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <input
                 value={passcode}
                 onChange={(event) => setPasscode(event.target.value)}
                 type="password"
-                placeholder="Agent passcode"
-                className="mt-6 w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
+                placeholder="Desk passcode"
+                className="mt-3 w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
               />
             </>
           )}
@@ -477,13 +604,8 @@ export default function AgentPage() {
             type="submit"
             className="mt-4 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
           >
-            {isApiBackend() && !otpSent ? "Send code" : "Enter inbox"}
+            {isApiBackend() && !otpSent ? "Send code" : "Open my desk"}
           </button>
-          {!isApiBackend() ? (
-            <p className="mt-4 text-xs text-muted">
-              Default local passcode: <code>amore-agents</code>
-            </p>
-          ) : null}
         </form>
       </div>
     );
@@ -498,30 +620,14 @@ export default function AgentPage() {
           </p>
           <h1 className="mt-2 font-display text-4xl text-ink">Travel Quotes</h1>
           <p className="mt-2 max-w-2xl text-muted">
-            Review traveler details, build a verified quote, track payment, and keep
-            the traveler informed in one place.
+            One queue for quotes, client fix-up, payment, and messages. Files assigned to
+            someone else are read-only until you take them.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <label className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink">
-            <span className="text-muted">Viewing as</span>
-            <select
-              value={viewingAgentId}
-              onChange={(event) => {
-                const next = normalizeAssignedAgentId(event.target.value);
-                localStorage.setItem(VIEWING_AS_KEY, next);
-                setViewingAgentId(next);
-              }}
-              className="bg-transparent text-sm font-semibold outline-none"
-              aria-label="Viewing agent"
-            >
-              {assignableAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="flex items-center rounded-full border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink">
+            Signed in as {agentNameForId(viewingAgentId)}
+          </p>
           <button
             type="button"
             aria-pressed={onlyMyAssignments}
@@ -532,7 +638,7 @@ export default function AgentPage() {
                 : "border border-line text-ink"
             }`}
           >
-            Assigned to me
+            {onlyMyAssignments ? "Assigned to me" : "All files (read-only others)"}
           </button>
           <button
             type="button"
@@ -571,24 +677,23 @@ export default function AgentPage() {
       </div>
 
       {assignmentAlerts.length > 0 ? (
-        <section className="mb-6 rounded-3xl border border-line bg-cream px-5 py-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h2 className="font-display text-xl text-ink">Notifications</h2>
-              <p className="mt-1 text-sm text-muted">
-                {unreadAssignmentIds.length
-                  ? `${unreadAssignmentIds.length} new assignment${
-                      unreadAssignmentIds.length === 1 ? "" : "s"
-                    } for ${agentNameForId(viewingAgentId)}.`
-                  : `Recent assignments for ${agentNameForId(viewingAgentId)}.`}
-              </p>
-            </div>
+        <details className="mb-6 rounded-3xl border border-line bg-cream px-5 py-3">
+          <summary className="cursor-pointer font-display text-lg text-ink">
+            Desk notices
+            {unreadAssignmentIds.length
+              ? ` · ${unreadAssignmentIds.length} new`
+              : ""}
+          </summary>
+          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm text-muted">
+              Recent assignments for {agentNameForId(viewingAgentId)}.
+            </p>
             <button
               type="button"
               onClick={clearNotifications}
               className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink"
             >
-              Clear notifications
+              Clear notices
             </button>
           </div>
           <ul className="mt-3 space-y-2 text-sm">
@@ -603,7 +708,7 @@ export default function AgentPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
 
       {showClientForms && (
@@ -656,21 +761,33 @@ export default function AgentPage() {
           </label>
           <div className="mt-3 space-y-2">
             {filtered.length === 0 && (
-              <p className="px-2 py-4 text-sm text-muted">No requests yet.</p>
+              <p className="px-2 py-4 text-sm text-muted">
+                {searchActive ? "No matching requests." : "No requests yet."}
+              </p>
             )}
-            {filtered.map((request) => (
+            {filtered.map((request) => {
+              const unread = travelerUnreadCount(request);
+              return (
               <button
                 key={request.id}
                 type="button"
                 onClick={() => {
                   setSelectedId(request.id);
                   setComposing(false);
+                  setEditingQuote(undefined);
                 }}
                 className={`w-full rounded-2xl px-3 py-3 text-left transition ${
                   selectedId === request.id ? "bg-cream" : "hover:bg-cream/60"
                 } ${request.assignedAgentId === viewingAgentId ? "ring-1 ring-gold" : ""}`}
               >
-                <div className="font-semibold text-ink">{quoteAssignmentTitle(request)}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold text-ink">{quoteAssignmentTitle(request)}</div>
+                  {unread > 0 ? (
+                    <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-on-gold">
+                      {unread} new
+                    </span>
+                  ) : null}
+                </div>
                 <div className="mt-1 text-xs text-muted">
                   Agent: {agentNameForId(request.assignedAgentId)}
                   {request.assignedAgentId === viewingAgentId ? " · Assigned to me" : ""}
@@ -679,21 +796,31 @@ export default function AgentPage() {
                   {tripStatusTitle(request.status)}
                 </div>
               </button>
-            ))}
+            );
+            })}
           </div>
         </aside>
 
         {!selected ? (
           <div className="rounded-3xl border border-line bg-surface p-8 text-muted">
-            Select a trip to manage it, or open client forms to create one.
+            {searchActive && filtered.length === 0
+              ? "No matching requests."
+              : "Select a trip to manage it, or open Clients to add details."}
           </div>
         ) : composing ? (
           <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
             <QuoteComposer
+              key={`${selected.id}-${composerMode}-${editingQuote?.id ?? "new"}`}
               request={selected}
+              initial={editingQuote}
+              mode={composerMode}
+              replacing={Boolean(editingQuote)}
               saving={saving}
               onPublish={publishQuote}
-              onCancel={() => setComposing(false)}
+              onCancel={() => {
+                setComposing(false);
+                setEditingQuote(undefined);
+              }}
             />
           </section>
         ) : (
@@ -718,28 +845,50 @@ export default function AgentPage() {
                     <p className="text-sm font-semibold text-ink">
                       Assigned to: {agentNameForId(selected.assignedAgentId)}
                     </p>
-                    <label className="flex items-center gap-2 text-xs font-semibold text-muted">
-                      Reassign
-                      <select
-                        value={selected.assignedAgentId}
+                    {ownsSelected ? (
+                      <label className="flex items-center gap-2 text-xs font-semibold text-muted">
+                        Move to
+                        <select
+                          value={selected.assignedAgentId}
+                          disabled={saving}
+                          onChange={(event) =>
+                            setPendingConfirm({ kind: "move", agentId: event.target.value })
+                          }
+                          className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink outline-none ring-gold focus:ring-2"
+                          aria-label="Move this file to another agent"
+                        >
+                          {assignableAgents.map((agent) => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <button
+                        type="button"
                         disabled={saving}
-                        onChange={(event) => void updateAssignedAgent(event.target.value)}
-                        className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink outline-none ring-gold focus:ring-2"
-                        aria-label="Reassign this travel quote"
+                        onClick={() => setPendingConfirm({ kind: "take" })}
+                        className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink"
                       >
-                        {assignableAgents.map((agent) => (
-                          <option key={agent.id} value={agent.id}>
-                            {agent.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        Take this file
+                      </button>
+                    )}
                   </div>
+                  {formatLastUpdated(selected) ? (
+                    <p className="mt-2 text-xs text-muted">{formatLastUpdated(selected)}</p>
+                  ) : null}
+                  {!ownsSelected ? (
+                    <p className="mt-3 rounded-2xl bg-cream px-4 py-3 text-sm text-ink">
+                      Read-only. This file is assigned to{" "}
+                      {agentNameForId(selected.assignedAgentId)}. Take it before editing.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               <div className="mt-6">
-                <StatusTracker status={selected.status} />
+                <StatusTracker status={travelerFacingStatus(selected)} />
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -749,8 +898,8 @@ export default function AgentPage() {
                     <button
                       key={step.title}
                       type="button"
-                      disabled={saving}
-                      onClick={() => updateStatus(statusForJourneyStage(index))}
+                      disabled={saving || !ownsSelected}
+                      onClick={() => requestStatusChange(statusForJourneyStage(index))}
                       className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                         active
                           ? "bg-gold text-on-gold"
@@ -770,8 +919,8 @@ export default function AgentPage() {
                     <button
                       key={status}
                       type="button"
-                      disabled={saving}
-                      onClick={() => updatePayment(status)}
+                      disabled={saving || !ownsSelected}
+                      onClick={() => requestPaymentChange(status)}
                       className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                         selected.paymentStatus === status
                           ? "bg-brand text-on-brand"
@@ -785,7 +934,7 @@ export default function AgentPage() {
               </div>
               <PaymentPlanPanel
                 request={selected}
-                editable
+                editable={ownsSelected}
                 saving={saving}
                 onSavePlan={savePaymentPlan}
               />
@@ -821,7 +970,7 @@ export default function AgentPage() {
                   </label>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || !ownsSelected}
                     className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold"
                   >
                     Save payment details
@@ -875,11 +1024,12 @@ export default function AgentPage() {
                 className="mt-5 flex flex-wrap items-end gap-3"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  if (!selected) return;
+                  if (!selected || !requireOwnFile()) return;
                   setSaving(true);
                   try {
                     const updated = await updateRequest(selected.id, {
                       clienteaseRef: clienteaseRef.trim() || null,
+                      audit: deskAudit("clientease_ref"),
                     });
                     await loadRequests();
                     setSelectedId(updated.id);
@@ -905,7 +1055,7 @@ export default function AgentPage() {
                 </label>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || !ownsSelected}
                   className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold"
                 >
                   Save ref
@@ -961,13 +1111,18 @@ export default function AgentPage() {
                 <div>
                   <h3 className="font-display text-2xl text-ink">Generate a quote</h3>
                   <p className="mt-1 text-sm text-muted">
-                    Opens a draft from this traveler’s request. Preview live, then
-                    confirm and send — the traveler reviews it like any other quote.
+                    Opens a short draft: property, room, stay total, taxes/fees, cancellation.
+                    Fill starred fields — Send turns on when Quality Check is clear.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setComposing(true)}
+                  disabled={!ownsSelected}
+                  onClick={() => {
+                    setComposerMode("quote");
+                    setEditingQuote(undefined);
+                    setComposing(true);
+                  }}
                   className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {selected.quotes.length ? "Add another quote" : "Generate a quote"}
@@ -982,6 +1137,19 @@ export default function AgentPage() {
                       Traveler selected this quote.
                     </p>
                   ) : null}
+                  {ownsSelected ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setComposerMode("quote");
+                        setEditingQuote(quote);
+                        setComposing(true);
+                      }}
+                      className="mt-3 mr-3 text-sm font-semibold text-gold-deep"
+                    >
+                      Revise this quote
+                    </button>
+                  ) : null}
                   {quote.pdfUrl ? (
                     <a
                       href={quote.pdfUrl}
@@ -994,28 +1162,52 @@ export default function AgentPage() {
                   ) : null}
                 </div>
               ))}
+              {(selected.quoteHistory ?? []).length > 0 ? (
+                <details className="mt-4 rounded-2xl border border-line px-4 py-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-ink">
+                    Previous versions ({selected.quoteHistory?.length})
+                  </summary>
+                  <ul className="mt-3 space-y-2 text-sm text-muted">
+                    {selected.quoteHistory?.map((quote) => (
+                      <li key={`${quote.id}-${quote.createdAt}`}>
+                        {quote.occasionTitle} · {quote.investmentTotal || "no total"}
+                        {ownsSelected ? (
+                          <button
+                            type="button"
+                            className="ml-3 font-semibold text-gold-deep"
+                            onClick={() => {
+                              setComposerMode("quote");
+                              setEditingQuote(quote);
+                              setComposing(true);
+                            }}
+                          >
+                            Restore
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </section>
 
             <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
-              <h3 className="font-display text-2xl text-ink">Canva / media flyer</h3>
+              <h3 className="font-display text-2xl text-ink">Attach a flyer</h3>
               <p className="mt-1 text-sm text-muted">
-                Attach a Canva link, PDF, or image inside a normal quote draft. It
-                uses the same live preview, Quality Check, and traveler quote flow as
-                every generated quote.
+                Title, total, and a Canva/PDF/image link. This does not open the full quote builder.
               </p>
               <button
                 type="button"
-                onClick={() => setComposing(true)}
+                disabled={!ownsSelected}
+                onClick={() => {
+                  setComposerMode("flyer");
+                  setEditingQuote(undefined);
+                  setComposing(true);
+                }}
                 className="mt-5 rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Add a flyer to a quote
+                Attach flyer
               </button>
-              {selected.options.length > 0 ? (
-                <p className="mt-4 text-xs text-muted">
-                  Previously shared simple options remain available to the traveler;
-                  new media always follows the verified quote workflow above.
-                </p>
-              ) : null}
             </section>
 
             <MessageThread
@@ -1048,6 +1240,50 @@ export default function AgentPage() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(pendingConfirm)}
+        title={
+          pendingConfirm?.kind === "status"
+            ? statusConfirmCopy(pendingConfirm.status).title
+            : pendingConfirm?.kind === "payment"
+              ? paymentConfirmCopy(pendingConfirm.status).title
+              : pendingConfirm?.kind === "take"
+                ? "Take this file?"
+                : pendingConfirm?.kind === "move"
+                  ? "Move this file?"
+                  : "Please confirm"
+        }
+        body={
+          pendingConfirm?.kind === "status"
+            ? statusConfirmCopy(pendingConfirm.status).body
+            : pendingConfirm?.kind === "payment"
+              ? paymentConfirmCopy(pendingConfirm.status).body
+              : pendingConfirm?.kind === "take"
+                ? `This file will be assigned to you (${agentNameForId(viewingAgentId)}) so you can edit it.`
+                : pendingConfirm?.kind === "move"
+                  ? `This file will move to ${agentNameForId(pendingConfirm.agentId)}. You will no longer be able to edit it unless you take it back.`
+                  : ""
+        }
+        confirmLabel={
+          pendingConfirm?.kind === "status"
+            ? statusConfirmCopy(pendingConfirm.status).confirmLabel
+            : pendingConfirm?.kind === "payment"
+              ? paymentConfirmCopy(pendingConfirm.status).confirmLabel
+              : pendingConfirm?.kind === "take"
+                ? "Take file"
+                : "Move file"
+        }
+        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => {
+          const pending = pendingConfirm;
+          setPendingConfirm(null);
+          if (!pending) return;
+          if (pending.kind === "status") void applyStatus(pending.status);
+          if (pending.kind === "payment") void applyPayment(pending.status);
+          if (pending.kind === "take") void applyAssignedAgent(viewingAgentId);
+          if (pending.kind === "move") void applyAssignedAgent(pending.agentId);
+        }}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   formatPartySummary,
   formatRequestParty,
   formatTravelWindow,
+  isFlexibleDateMode,
   isIntakeComplete,
   QuoteIntakeFields,
   quoteDefaultsFromRequest,
@@ -39,11 +40,14 @@ function uspsCityLine(intake: TripIntake) {
 function RequestSnapshot({ request }: { request: TravelRequest }) {
   return (
     <dl className="grid gap-3 text-sm sm:grid-cols-2">
+      <Item label="Nickname" value={request.trip.nickname} />
+      <Item label="Trip reference" value={request.tripRef} />
       <Item label="Name" value={request.traveler.fullName} />
       <Item label="Email" value={request.traveler.email} />
       <Item label="Phone" value={request.traveler.phone} />
       <Item label="Destination" value={request.trip.destination} />
       <Item label="Travel window" value={request.trip.travelWindow} />
+      <Item label="Date mode" value={isFlexibleDateMode(request.trip) ? "Flexible dates" : "Fixed dates"} />
       <Item label="Travelers" value={formatRequestParty(request)} />
       <Item label="Budget" value={request.trip.budget} />
       <Item
@@ -165,11 +169,12 @@ export function AgentClientDetails({
         <QuoteIntakeForm
           key={request.id}
           defaults={quoteDefaultsFromRequest(request)}
+          stage={complete ? "booking" : "quote"}
           title={complete ? "Correct trip details" : "Add trip details"}
           description={
             complete
-              ? "Edits save to this travel quote — they do not generate a new PDF."
-              : "Optional. Save extra details if you collected them by phone. You can write a quote without this form."
+              ? "Fields marked * are required. Edits update this traveler’s file only — they do not change a quote already sent."
+              : "Optional except * fields. Save what you collected by phone. Address and dates of birth can wait until the traveler chooses an option."
           }
           submitLabel="Save trip details"
           notesLabel="Notes"

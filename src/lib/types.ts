@@ -43,6 +43,8 @@ export type TripType =
   | "vacation_package"
   | "not_sure";
 
+export type DateFlexibility = "flexible" | "fixed";
+
 export type MessageSender = "traveler" | "agent";
 
 export type TravelOption = {
@@ -110,8 +112,21 @@ export type TravelProposal = {
   thankYou: string;
   /** Agent-recorded research; unapproved observations never become published facts. */
   researchEvidence?: ResearchEvidence[];
+  /** When true, Quality Check requires approved stay/cruise research. */
+  recordResearch?: boolean;
   flyerUrl?: string;
   pdfUrl?: string;
+  /** Media/flyer attach vs the short stay quote path. */
+  quoteKind?: "full" | "media";
+};
+
+export type AuditEvent = {
+  id: string;
+  at: string;
+  agentId: string;
+  agentName: string;
+  action: string;
+  detail?: string;
 };
 
 export type MessageAttachment = {
@@ -128,6 +143,8 @@ export type Message = {
   body: string;
   createdAt: string;
   attachments?: MessageAttachment[];
+  /** Auto desk notices vs a person typing. Older messages omit this. */
+  kind?: "chat" | "notice";
 };
 
 export type TripIntake = {
@@ -152,13 +169,17 @@ export type TripIntake = {
   adultsCount: string;
   adultsAges?: string;
   adultDobs: string[];
+  adultNames: string[];
   childrenCount: string;
   childrenAges?: string;
   childDobs: string[];
+  childNames: string[];
   pets: boolean;
   supportAnimal: boolean;
   preferredAgent: string;
   tripType: TripType;
+  datesFlexible?: boolean;
+  nickname?: string;
 };
 
 export type TravelRequest = {
@@ -207,19 +228,30 @@ export type TravelRequest = {
     childrenCount?: number;
     adultAges?: number[];
     childAges?: number[];
+    adultNames?: string[];
+    childNames?: string[];
     budget: string;
     tripType: TripType;
     tripStyle: string[];
     preferences: string;
     preferredAgent: string;
+    nickname?: string;
+    dateMode?: DateFlexibility;
+    /** Window the traveler asked for before preferred dates were saved. */
+    requestedTravelWindow?: string;
   };
-  /** Expanded questionnaire. Optional until a quote is approved. */
+  /** Expanded questionnaire. Quote-stage extras can be saved; booking fields come after a quote is chosen. */
   intake?: TripIntake;
   selectedOptionId?: string;
   selectedQuoteId?: string;
   options: TravelOption[];
   quotes: TravelProposal[];
+  /** Previous published quote versions, newest first. */
+  quoteHistory?: TravelProposal[];
   messages: Message[];
+  lastUpdatedBy?: string;
+  lastUpdatedAt?: string;
+  auditLog?: AuditEvent[];
 };
 
 export type NotificationEvent =

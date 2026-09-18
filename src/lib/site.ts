@@ -24,7 +24,7 @@ export const navLinks: NavLink[] = [
   { href: "/cruises", label: "Cruises" },
   { href: "/about", label: "About Us" },
   { href: "/contact-us", label: "Contact" },
-  { href: "/request-a-quote", label: "Request a Quote", opensForm: true, emphasize: true },
+  { href: "/", label: "Request a Quote", opensForm: true, emphasize: true },
 ];
 
 export const services = [

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ActivityLog } from "@/components/ActivityLog";
 import { MessageThread } from "@/components/MessageThread";
@@ -22,35 +22,77 @@ import { proposalFromOption } from "@/lib/quotes";
 import {
   formatDisplayDate,
   formatIntakeAddress,
-  formatPartySummary,
-  formatRequestParty,
+  formatTimestamp,
+  formatTripWindow,
   isIntakeComplete,
+  namedTravelers,
   QuoteIntakeFields,
   quoteDefaultsFromRequest,
   toTripIntake,
+  tripNickname,
 } from "@/lib/intake";
-import { tripStatusSteps } from "@/lib/journey";
+import { travelerFacingStatus, tripStatusSteps } from "@/lib/journey";
 import { logDashboardLogin, notificationsForTraveler } from "@/lib/notifications";
 import { lookupTraveler, updateRequest, addMessage } from "@/lib/requests";
-import { clearSession, readSession, writeSession } from "@/lib/session";
+import { clearSession, emailsMatch, phonesMatch, readSession, SESSION_CHANGED_EVENT, writeSession } from "@/lib/session";
+import { REQUESTS_CHANGED_EVENT } from "@/lib/store";
+import { site } from "@/lib/site";
 import { logoutApiSession, postJson } from "@/lib/uploads";
 import { DemoNotification, TravelRequest, TripType } from "@/lib/types";
 
 function nextStepCopy(trip: TravelRequest) {
-  if (trip.status === "booking_confirmed") {
+  const status = travelerFacingStatus(trip);
+  if (status === "booking_confirmed") {
     return tripStatusSteps[2].text;
   }
   if (trip.selectedQuoteId || trip.selectedOptionId) {
     return isIntakeComplete(trip)
       ? "You chose an option. Your agent will confirm the trip."
-      : "You chose an option. Add traveler names, birth dates, and address so booking can move forward.";
+      : "You chose an option. Add legal names, dates of birth, and a mailing address so we can book.";
   }
-  if (trip.quotes.length > 0 || trip.options.length > 0) {
-    return isIntakeComplete(trip)
-      ? tripStatusSteps[1].text
-      : "Your quote is ready. Add trip details before you confirm — names, birth dates, and address.";
+  if (status === "options_ready" || trip.quotes.length > 0 || trip.options.length > 0) {
+    return trip.quotes.length > 0 || trip.options.length > 0
+      ? "Your quote is ready to review. Choose an option to move forward — address and dates of birth come after that."
+      : tripStatusSteps[1].text;
   }
   return "Your agent has this request and will follow up, usually within 24 hours.";
+}
+
+function persistTripInUrl(tripId: string | null) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (tripId) url.searchParams.set("trip", tripId);
+  else url.searchParams.delete("trip");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function TravelerCards({ request }: { request: TravelRequest }) {
+  const people = namedTravelers(request);
+  if (!people.length) return null;
+  return (
+    <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+      {people.map((person) => (
+        <li
+          key={person.key}
+          className="rounded-2xl border border-line bg-cream/70 px-4 py-3 text-sm"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-deep">
+            {person.label}
+          </p>
+          <p className="mt-1 font-medium text-ink">{person.name}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {[
+              person.role === "child" ? "17 and under" : "Adult",
+              person.age != null ? `age ${person.age}` : "",
+              person.dob ? formatDisplayDate(person.dob) : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function DashboardInner() {
@@ -69,11 +111,22 @@ function DashboardInner() {
   const [editingIntake, setEditingIntake] = useState(false);
   const [savingIntake, setSavingIntake] = useState(false);
   const [pendingDetailsScroll, setPendingDetailsScroll] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const selectedIdRef = useRef<string | null>(null);
+  const emailRef = useRef(email);
+  const phoneRef = useRef(phone);
+  const signedInRef = useRef(false);
+  selectedIdRef.current = selectedId;
+  emailRef.current = email;
+  phoneRef.current = phone;
 
   const selected = useMemo(
     () => trips.find((trip) => trip.id === selectedId) ?? null,
     [trips, selectedId],
   );
+  signedInRef.current = trips.length > 0;
 
   const activity = useMemo(
     () => (selected ? buildTripActivity(selected, notes) : []),
@@ -81,7 +134,10 @@ function DashboardInner() {
   );
 
   const intakeComplete = selected ? isIntakeComplete(selected) : false;
+  const quoteChosen = Boolean(selected?.selectedQuoteId || selected?.selectedOptionId);
+  const intakeStage = quoteChosen ? "booking" : "quote";
   const showIntakeForm = Boolean(selected && editingIntake);
+  const selectedStatus = selected ? travelerFacingStatus(selected) : null;
 
   useEffect(() => {
     if (!pendingDetailsScroll || !showIntakeForm) return;
@@ -98,17 +154,80 @@ function DashboardInner() {
   function goToTripDetails(tripId?: string) {
     if (tripId && tripId !== selectedId) {
       setSelectedId(tripId);
+      persistTripInUrl(tripId);
     }
     setEditingIntake(true);
     setPendingDetailsScroll(true);
   }
 
+  const lookup = useCallback(async (
+    nextEmail = emailRef.current,
+    nextPhone = phoneRef.current,
+    options: {
+      tripId?: string | null;
+      logLogin?: boolean;
+      keepSelection?: boolean;
+      silent?: boolean;
+    } = {},
+  ) => {
+    if (!options.silent) {
+      setLoading(true);
+      setError("");
+    }
+    try {
+      const found = await lookupTraveler(nextEmail, nextPhone);
+      const preferredId =
+        options.tripId ||
+        (options.keepSelection === false ? undefined : selectedIdRef.current);
+      const kept = preferredId
+        ? found.find((trip) => trip.id === preferredId)
+        : undefined;
+      const nextSelectedId = kept?.id ?? found[0]?.id ?? null;
+      setTrips(found);
+      setEmail(nextEmail);
+      setPhone(nextPhone);
+      writeSession({
+        fullName: kept?.traveler.fullName ?? found[0]?.traveler.fullName ?? "",
+        email: nextEmail,
+        phone: nextPhone,
+      });
+      if (options.logLogin) logDashboardLogin(nextEmail);
+      setNotes(notificationsForTraveler(nextEmail));
+      setSelectedId(nextSelectedId);
+      persistTripInUrl(nextSelectedId);
+      setLastCheckedAt(new Date().toISOString());
+      return found;
+    } catch (err) {
+      if (!options.silent) {
+        setTrips([]);
+        setSelectedId(null);
+        setError(err instanceof Error ? err.message : "Unable to find quotes.");
+      }
+      return [];
+    } finally {
+      if (!options.silent) setLoading(false);
+    }
+  }, []);
+
+  const refresh = useCallback(async (tripId?: string | null, silent = false) => {
+    if (!emailRef.current || !phoneRef.current) return;
+    if (!silent) setRefreshing(true);
+    try {
+      await lookup(emailRef.current, phoneRef.current, {
+        tripId: tripId ?? selectedIdRef.current,
+        keepSelection: true,
+        silent,
+      });
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  }, [lookup]);
+
   useEffect(() => {
     const saved = readSession();
-    const emailParam = searchParams.get("email") ?? saved?.email ?? "";
-    const phoneParam = searchParams.get("phone") ?? saved?.phone ?? "";
-    setEmail(emailParam);
-    setPhone(phoneParam);
+    const emailParam = searchParams.get("email") ?? "";
+    const phoneParam = searchParams.get("phone") ?? "";
+    const tripParam = searchParams.get("trip");
 
     async function boot() {
       if (isApiBackend()) {
@@ -119,10 +238,8 @@ function DashboardInner() {
           if (res.ok) {
             const me = (await res.json()) as { role?: string; email?: string; phone?: string };
             if (me.role === "traveler" && me.email && me.phone) {
-              setEmail(me.email);
-              setPhone(me.phone);
               await lookup(me.email, me.phone, {
-                tripId: searchParams.get("trip"),
+                tripId: tripParam,
                 logLogin: true,
               });
               setReady(true);
@@ -132,12 +249,26 @@ function DashboardInner() {
         } catch {
           /* stay on login */
         }
+        if (emailParam) setEmail(emailParam);
+        if (phoneParam) setPhone(phoneParam);
         setReady(true);
         return;
       }
-      if (emailParam && phoneParam) {
-        await lookup(emailParam, phoneParam, {
-          tripId: searchParams.get("trip"),
+      const nextEmail = emailParam || saved?.email || "";
+      const nextPhone = phoneParam || saved?.phone || "";
+      if (emailParam || phoneParam) {
+        setEmail(nextEmail);
+        setPhone(nextPhone);
+      } else if (!saved) {
+        setEmail("");
+        setPhone("");
+      } else {
+        setEmail(saved.email);
+        setPhone(saved.phone);
+      }
+      if (nextEmail && nextPhone) {
+        await lookup(nextEmail, nextPhone, {
+          tripId: tripParam,
           logLogin: true,
         });
       }
@@ -146,37 +277,108 @@ function DashboardInner() {
 
     void boot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, []);
 
-  async function lookup(
-    nextEmail = email,
-    nextPhone = phone,
-    options: { tripId?: string | null; logLogin?: boolean } = {},
-  ) {
-    setLoading(true);
-    setError("");
-    try {
-      const found = await lookupTraveler(nextEmail, nextPhone);
-      setTrips(found);
-      writeSession({
-        fullName: found[0]?.traveler.fullName ?? "",
-        email: nextEmail,
-        phone: nextPhone,
-      });
-      if (options.logLogin) logDashboardLogin(nextEmail);
-      setNotes(notificationsForTraveler(nextEmail));
-      const fromUrl = options.tripId
-        ? found.find((trip) => trip.id === options.tripId)
-        : undefined;
-      setSelectedId(fromUrl?.id ?? found[0]?.id ?? null);
-    } catch (err) {
-      setTrips([]);
-      setSelectedId(null);
-      setError(err instanceof Error ? err.message : "Unable to find quotes.");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!ready) return;
+    const tripParam = searchParams.get("trip");
+    const emailParam = searchParams.get("email");
+    const phoneParam = searchParams.get("phone");
+    if (emailParam && phoneParam) {
+      if (
+        !emailsMatch(emailParam, emailRef.current) ||
+        !phonesMatch(phoneParam, phoneRef.current)
+      ) {
+        void lookup(emailParam, phoneParam, {
+          tripId: tripParam,
+          keepSelection: false,
+          silent: true,
+        });
+        return;
+      }
     }
-  }
+    if (tripParam && tripParam !== selectedIdRef.current && signedInRef.current) {
+      void refresh(tripParam, true);
+    }
+  }, [ready, searchParams, lookup, refresh]);
+
+  useEffect(() => {
+    function sessionMatchesSignedIn() {
+      const session = readSession();
+      if (!session) return signedInRef.current === false;
+      return (
+        emailsMatch(session.email, emailRef.current) &&
+        phonesMatch(session.phone, phoneRef.current)
+      );
+    }
+
+    async function syncFromOutside() {
+      const session = readSession();
+      if (session) {
+        if (!sessionMatchesSignedIn() || !signedInRef.current) {
+          await lookup(session.email, session.phone, {
+            tripId: selectedIdRef.current,
+            keepSelection: true,
+          });
+          return;
+        }
+        if (signedInRef.current) {
+          await refresh(undefined, true);
+        }
+        return;
+      }
+      if (signedInRef.current) {
+        setTrips([]);
+        setSelectedId(null);
+        setEmail("");
+        setPhone("");
+        setOtpSent(false);
+        setOtpCode("");
+      }
+    }
+
+    function onStorage(event: StorageEvent) {
+      if (
+        event.key === "amore_travel_requests" ||
+        event.key === "amore_traveler_session" ||
+        event.key === null
+      ) {
+        void syncFromOutside();
+      }
+    }
+
+    function onVisible() {
+      if (document.visibilityState === "visible") void syncFromOutside();
+    }
+
+    function onRequestsChanged() {
+      void refresh(undefined, true);
+    }
+
+    function onSessionChanged() {
+      void syncFromOutside();
+    }
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(REQUESTS_CHANGED_EVENT, onRequestsChanged);
+    window.addEventListener(SESSION_CHANGED_EVENT, onSessionChanged);
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === "visible" && signedInRef.current) {
+        void refresh(undefined, true);
+      }
+    }, 8000);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(REQUESTS_CHANGED_EVENT, onRequestsChanged);
+      window.removeEventListener(SESSION_CHANGED_EVENT, onSessionChanged);
+      window.clearInterval(poll);
+    };
+  }, [lookup, refresh]);
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
@@ -193,7 +395,7 @@ function DashboardInner() {
           return;
         }
         await postJson("/api/auth/traveler/verify", { email, phone, code: otpCode });
-        await lookup(email, phone, { logLogin: true });
+        await lookup(email, phone, { logLogin: true, keepSelection: false });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to sign in.");
       } finally {
@@ -201,12 +403,7 @@ function DashboardInner() {
       }
       return;
     }
-    lookup(email, phone, { logLogin: true });
-  }
-
-  function refresh() {
-    if (!email || !phone) return;
-    lookup(email, phone);
+    void lookup(email, phone, { logLogin: true, keepSelection: false });
   }
 
   async function selectQuote(quoteId: string) {
@@ -214,7 +411,7 @@ function DashboardInner() {
     setSelecting(quoteId);
     try {
       await updateRequest(selected.id, { selectedQuoteId: quoteId });
-      refresh();
+      await refresh(selected.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to select quote.");
     } finally {
@@ -227,7 +424,7 @@ function DashboardInner() {
     setSelecting(optionId);
     try {
       await updateRequest(selected.id, { selectedOptionId: optionId });
-      refresh();
+      await refresh(selected.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to select option.");
     } finally {
@@ -237,22 +434,22 @@ function DashboardInner() {
 
   async function saveIntake(data: QuoteIntakeFields, tripType: TripType) {
     if (!selected) return;
-    const firstCompletion = !selected.intake?.completedAt;
+    const wasComplete = isIntakeComplete(selected);
     setSavingIntake(true);
     setError("");
     try {
       const updated = await updateRequest(selected.id, {
-        intake: toTripIntake(data, tripType, selected.intake?.completedAt),
+        intake: toTripIntake(data, tripType),
       });
-      if (firstCompletion) {
+      if (!wasComplete && isIntakeComplete(updated)) {
         await addMessage(selected.id, {
           sender: "traveler",
           senderName: updated.traveler.fullName,
-          body: "hi! my Travel details form has been submitted. let me know if you have any other questions before organizing my quote.",
+          body: "Hi! My booking details are in. Let me know if you need anything else before you confirm the trip.",
         });
       }
       setEditingIntake(false);
-      refresh();
+      await refresh(selected.id);
     } catch (err) {
       throw err instanceof Error ? err : new Error("Unable to save trip details.");
     } finally {
@@ -260,7 +457,24 @@ function DashboardInner() {
     }
   }
 
+  async function signOut() {
+    clearSession();
+    if (isApiBackend()) await logoutApiSession();
+    setTrips([]);
+    setSelectedId(null);
+    setEmail("");
+    setPhone("");
+    setError("");
+    setOtpSent(false);
+    setOtpCode("");
+    setLastCheckedAt(null);
+    persistTripInUrl(null);
+  }
+
   const firstName = trips[0]?.traveler.fullName.split(" ")[0] ?? "";
+  const lastCheckedLabel = lastCheckedAt
+    ? `Last checked ${formatTimestamp(lastCheckedAt)}`
+    : "Not checked yet";
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-16">
@@ -279,15 +493,7 @@ function DashboardInner() {
             </StartTravelButton>
             <button
               type="button"
-              onClick={async () => {
-                clearSession();
-                if (isApiBackend()) await logoutApiSession();
-                setTrips([]);
-                setSelectedId(null);
-                setError("");
-                setOtpSent(false);
-                setOtpCode("");
-              }}
+              onClick={() => void signOut()}
               className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
             >
               Sign out
@@ -305,11 +511,14 @@ function DashboardInner() {
       {ready && trips.length === 0 && (
         <form
           onSubmit={handleLogin}
+          autoComplete="off"
           className="max-w-md space-y-4 rounded-3xl border border-line bg-surface p-6 md:p-8"
         >
           <h2 className="font-display text-2xl text-ink">Sign in</h2>
           <p className="text-sm text-muted">
-            Use the email and phone from your quote request.
+            Use the email and phone from the quote request you want to open.
+            Fields start blank after sign-out so a guest pass cannot reopen the
+            previous traveler.
           </p>
           <label className="block text-sm">
             <span className="mb-1.5 block font-medium">Email</span>
@@ -317,7 +526,7 @@ function DashboardInner() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
+              autoComplete="off"
               className="w-full rounded-xl border border-line px-4 py-3 outline-none ring-gold focus:ring-2"
               required
             />
@@ -327,6 +536,7 @@ function DashboardInner() {
             value={phone}
             onChange={setPhone}
             required
+            autoComplete="off"
           />
           {isApiBackend() && otpSent ? (
             <label className="block text-sm">
@@ -372,6 +582,7 @@ function DashboardInner() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {trips.map((trip) => {
                 const active = selectedId === trip.id;
+                const people = namedTravelers(trip);
                 return (
                   <article
                     key={trip.id}
@@ -385,14 +596,24 @@ function DashboardInner() {
                       type="button"
                       onClick={() => {
                         setSelectedId(trip.id);
+                        persistTripInUrl(trip.id);
                         setEditingIntake(false);
                       }}
                       className="w-full text-left"
                     >
-                      <div className="font-display text-xl text-ink">{trip.trip.destination}</div>
-                      <p className="mt-1 text-sm text-muted">{trip.trip.travelWindow}</p>
+                      <div className="font-display text-xl text-ink">{tripNickname(trip)}</div>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-gold-deep">
+                        {trip.tripRef}
+                      </p>
+                      <p className="mt-2 text-sm text-muted">{formatTripWindow(trip.trip)}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        Requested {formatTimestamp(trip.createdAt)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted">
+                        {people.map((person) => person.name).join(" · ")}
+                      </p>
                       <div className="mt-4">
-                        <StatusBadge status={trip.status} />
+                        <StatusBadge status={travelerFacingStatus(trip)} />
                       </div>
                     </button>
                   </article>
@@ -401,31 +622,31 @@ function DashboardInner() {
             </div>
           </div>
 
-          {selected && (
+          {selected && selectedStatus && (
             <div className="space-y-6">
               <section className="rounded-3xl border border-line bg-surface p-6 md:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <h2 className="font-display text-3xl text-ink">
-                      {selected.trip.destination}
+                      {tripNickname(selected)}
                     </h2>
                     <p className="mt-1 text-sm text-muted">
-                      {selected.trip.travelWindow}
-                      {selected.trip.travelers
-                        ? ` · ${formatRequestParty(selected)}`
-                        : ""}
+                      {selected.tripRef} · Requested {formatTimestamp(selected.createdAt)}
+                    </p>
+                    <p className="mt-2 text-sm text-muted">
+                      {selected.trip.destination} · {formatTripWindow(selected.trip)}
                     </p>
                   </div>
-                  <StatusBadge status={selected.status} />
+                  <StatusBadge status={selectedStatus} />
                 </div>
+                <TravelerCards request={selected} />
                 <div className="mt-8">
-                  <StatusTracker status={selected.status} />
+                  <StatusTracker status={selectedStatus} />
                 </div>
                 {nextStepCopy(selected) ? (
                   <p className="mt-6 rounded-2xl bg-cream/80 px-4 py-3 text-sm text-ink">
                     {nextStepCopy(selected)}
-                    {(selected.quotes.length > 0 || selected.options.length > 0) &&
-                    !intakeComplete ? (
+                    {quoteChosen && !intakeComplete ? (
                       <>
                         {" "}
                         <button
@@ -433,7 +654,7 @@ function DashboardInner() {
                           onClick={() => goToTripDetails(selected.id)}
                           className="font-semibold text-gold-deep underline-offset-2 hover:underline"
                         >
-                          Add trip details
+                          Add booking details
                         </button>
                       </>
                     ) : null}
@@ -447,20 +668,21 @@ function DashboardInner() {
                   className="scroll-mt-28 rounded-3xl border-2 border-gold bg-surface p-6 md:p-8"
                 >
                   <QuoteIntakeForm
-                    key={selected.id}
+                    key={`${selected.id}-${intakeStage}`}
                     framed={false}
+                    stage={intakeStage}
                     defaults={quoteDefaultsFromRequest(selected)}
-                    title={intakeComplete ? "Update trip details" : "Trip details"}
+                    title={quoteChosen ? "Booking details" : "Quote preferences"}
                     description={
-                      intakeComplete
-                        ? "Change anything your agent should know."
-                        : "Optional until you choose a quote. Names, address, and birth dates help us book accurately."
+                      quoteChosen
+                        ? "We need legal names, dates of birth, and a mailing address to book. Trip preferences can still be updated."
+                        : "Optional extras for this quote. Address, dates of birth, and how you’ll travel are collected after you choose an option."
                     }
                     submitLabel="Save trip details"
                     saving={savingIntake}
                     onSubmit={saveIntake}
                   />
-                  {editingIntake && intakeComplete ? (
+                  {editingIntake ? (
                     <button
                       type="button"
                       onClick={() => setEditingIntake(false)}
@@ -477,7 +699,7 @@ function DashboardInner() {
                 sender="traveler"
                 senderName={selected.traveler.fullName}
                 requestId={selected.id}
-                onSent={() => refresh()}
+                onSent={() => void refresh(selected.id)}
               />
 
               <section className="space-y-5">
@@ -488,23 +710,39 @@ function DashboardInner() {
                       {selected.quotes.length || selected.options.length ? (
                         "Choose the option you want. Nothing is booked until your agent confirms."
                       ) : (
-                        "Your agent is putting options together. We’ll email you when a quote is ready."
+                        "Your agent is putting options together. This list refreshes from the latest saved trip — you should not need a full reload."
                       )}
                     </p>
+                    <p className="mt-1 text-xs text-muted">{lastCheckedLabel}</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => refresh()}
-                    className="text-sm font-semibold text-gold-deep"
+                    onClick={() => void refresh(selected.id)}
+                    className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
                   >
-                    Check for updates
+                    {refreshing || loading ? "Refreshing…" : "Refresh status"}
                   </button>
                 </div>
 
                 {selected.quotes.length === 0 && selected.options.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted">
-                    No options yet. An agent will follow up, usually within 24 hours.
-                  </p>
+                  <div className="rounded-2xl border border-dashed border-line bg-surface px-4 py-8 text-center text-sm text-muted">
+                    <p>No options yet. An agent will follow up, usually within 24 hours.</p>
+                    <p className="mt-2 text-xs">{lastCheckedLabel}</p>
+                    <p className="mt-3">
+                      Need a faster reply? Email{" "}
+                      <a className="font-semibold text-gold-deep underline" href={`mailto:${site.email}`}>
+                        {site.email}
+                      </a>{" "}
+                      or call{" "}
+                      <a className="font-semibold text-gold-deep underline" href={site.phoneHref}>
+                        {site.phone}
+                      </a>
+                      .
+                    </p>
+                    <p className="mt-3 text-xs">
+                      Ask your agent to escalate if you have not heard back after one business day.
+                    </p>
+                  </div>
                 ) : null}
 
                 {selected.quotes.map((quote) => {
@@ -597,11 +835,13 @@ function DashboardInner() {
                   Request details
                 </summary>
                 <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+                  <Item label="Request ID" value={selected.tripRef} />
+                  <Item label="Created" value={formatTimestamp(selected.createdAt)} />
                   <Item
                     label="Trip type"
                     value={tripTypeLabels[selected.trip.tripType] ?? selected.trip.tripType}
                   />
-                  <Item label="Travelers" value={formatRequestParty(selected)} />
+                  <Item label="Dates" value={formatTripWindow(selected.trip)} />
                   {selected.trip.departureCity ? (
                     <Item label="Departure city" value={selected.trip.departureCity} />
                   ) : null}
@@ -634,6 +874,7 @@ function DashboardInner() {
                     />
                   ) : null}
                 </dl>
+                <TravelerCards request={selected} />
                 <div className="mt-5">
                   <PaymentPlanPanel request={selected} />
                 </div>
@@ -645,31 +886,27 @@ function DashboardInner() {
                       "No notes yet."}
                   </p>
                 </div>
-                {intakeComplete && !showIntakeForm ? (
+                {!showIntakeForm ? (
                   <button
                     type="button"
                     onClick={() => goToTripDetails(selected.id)}
                     className="mt-4 text-sm font-semibold text-gold-deep"
                   >
-                    Update trip details
-                  </button>
-                ) : !showIntakeForm ? (
-                  <button
-                    type="button"
-                    onClick={() => goToTripDetails(selected.id)}
-                    className="mt-4 text-sm font-semibold text-gold-deep"
-                  >
-                    Add trip details
+                    {quoteChosen
+                      ? intakeComplete
+                        ? "Update booking details"
+                        : "Add booking details"
+                      : "Add quote preferences"}
                   </button>
                 ) : null}
               </details>
 
-              <details className="rounded-3xl border border-line bg-surface px-6 py-4 md:px-8">
+              <details className="rounded-3xl border border-line bg-surface px-6 py-4 md:px-8" open={selected.quotes.length === 0 && selected.options.length === 0}>
                 <summary className="cursor-pointer font-display text-xl text-ink">
                   Activity
                 </summary>
                 <p className="mt-2 text-sm text-muted">
-                  Sign-ins and emails for this trip.
+                  Sign-ins, messages, and emails for this trip. {lastCheckedLabel}.
                 </p>
                 <div className="mt-2">
                   <ActivityLog items={activity} embedded />
@@ -715,7 +952,6 @@ function IntakeSummary({ request }: { request: TravelRequest }) {
           }
         />
       ) : null}
-      <Item label="Party" value={formatPartySummary(intake)} />
       {intake.pets || intake.supportAnimal ? (
         <Item
           label="Animals"

@@ -1,5 +1,4 @@
 import { tripTypeLabels } from "@/lib/agents";
-import { assetPath } from "@/lib/asset";
 import {
   formatAgeList,
   formatDobList,
@@ -94,7 +93,6 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
   const route = departureCity ? `${departureCity} → ${destination}` : destination;
   const wantsFlight = hasMode(intake?.transportationModes, "flight");
   const wantsRental = hasMode(intake?.transportationModes, "rental");
-  const includeFlights = wantsFlight;
   const copy = stayCopy(tripType);
   const occasionKind =
     tripType === "cruise"
@@ -102,8 +100,6 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
       : typeLabel && typeLabel !== "Not sure yet"
         ? typeLabel.toLowerCase()
         : "getaway";
-  const flexId = createId("tier");
-  const mainId = createId("tier");
   const agentNotes = [
     intake?.notes || request.trip.preferences
       ? `Traveler notes: ${intake?.notes || request.trip.preferences}`
@@ -130,24 +126,17 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
     request.trip.tripStyle.length
       ? `Requested trip style: ${request.trip.tripStyle.join(", ")}`
       : "",
-    tripType === "cruise"
-      ? "Cruise itinerary, ship, cabin, and sailing availability need agent verification."
+    wantsFlight
+      ? "Traveler asked for flights — turn on Include flights only if you are quoting them."
+      : "",
+    wantsRental
+      ? "Traveler asked for a rental car — add it under extras if you are quoting it."
       : "",
   ].filter(Boolean);
   const notes = [
     "Prices and availability are confirmed before booking. No confirmation numbers until we book.",
     "We recommend travel protection so an unexpected change does not become an unpaid trip.",
   ];
-
-  const enhancements = wantsRental
-    ? [
-        {
-          name: "Rental car",
-          price: "TBD",
-          note: "Requested with trip details",
-        },
-      ]
-    : [];
 
   return {
     id: createId("quote"),
@@ -162,37 +151,21 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
     resortRating: "",
     resortAddress: destination,
     roomType: copy.roomLabel,
-    roomDetails: copy.roomDetails,
-    resortImageUrl: assetPath("/images/caribbean.jpeg"),
-    amenities: copy.amenities,
+    roomDetails: "",
+    resortImageUrl: "",
+    amenities: [],
     investmentLines: [
       { label: copy.stayLine, amount: "" },
       { label: "Taxes & fees", amount: "" },
     ],
     investmentTotal: "",
     cancellation: "",
-    includeFlights,
-    flightRoute: includeFlights ? route : "",
-    flightTiers: includeFlights
-      ? [
-          {
-            id: mainId,
-            name: "Main cabin",
-            price: "TBD",
-            features: ["Airline TBD", "Times TBD"],
-          },
-          {
-            id: flexId,
-            name: "Flexible",
-            price: "TBD",
-            popular: true,
-            features: ["Airline TBD", "Times TBD", "More change flexibility"],
-          },
-        ]
-      : [],
-    recommendedFlightId: includeFlights ? flexId : "",
+    includeFlights: false,
+    flightRoute: "",
+    flightTiers: [],
+    recommendedFlightId: "",
     recommendedFlightTotal: "",
-    enhancements,
+    enhancements: [],
     includeProtection: false,
     protectionProvider: "",
     protectionTiers: [
@@ -216,6 +189,27 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
     thankYou: `Thank you for letting Amore Global help plan this trip. We will stay with you from this quote through confirmation.`,
     flyerUrl: "",
     researchEvidence: [],
+    recordResearch: false,
+    quoteKind: "full",
+  };
+}
+
+export function emptyFlyerProposal(request: TravelRequest): TravelProposal {
+  const base = emptyProposal(request);
+  return {
+    ...base,
+    resortName: "",
+    roomType: "",
+    roomDetails: "",
+    amenities: [],
+    investmentLines: [],
+    includeFlights: false,
+    flightTiers: [],
+    enhancements: [],
+    includeProtection: false,
+    recordResearch: false,
+    researchEvidence: [],
+    quoteKind: "media",
   };
 }
 

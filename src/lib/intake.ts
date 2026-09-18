@@ -26,13 +26,19 @@ export type QuoteIntakeFields = {
   adultsCount: string;
   adultsAges?: string;
   adultDobs: string[];
+  adultNames?: string[];
   childrenCount: string;
   childrenAges?: string;
   childDobs: string[];
+  childNames?: string[];
   pets: boolean;
   supportAnimal: boolean;
   preferredAgent: string;
+  datesFlexible?: boolean;
+  nickname?: string;
 };
+
+export type IntakeStage = "quote" | "booking" | "full";
 
 export function isIntakeComplete(request: TravelRequest) {
   return Boolean(request.intake?.completedAt);
@@ -77,6 +83,40 @@ export function formatDisplayDate(iso: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+export function formatTimestamp(iso: string) {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+export function isFlexibleDateMode(trip: TravelRequest["trip"]) {
+  if (trip.dateMode === "flexible") return true;
+  if (trip.dateMode === "fixed") return false;
+  return /flexible/i.test(`${trip.travelWindow} ${trip.requestedTravelWindow ?? ""}`);
+}
+
+export function tripNickname(request: TravelRequest) {
+  return request.trip.nickname?.trim() || request.trip.destination;
+}
+
+export function formatTripWindow(trip: TravelRequest["trip"]) {
+  const window = trip.travelWindow?.trim() || "";
+  if (isFlexibleDateMode(trip)) {
+    if (window && !/flexible/i.test(window)) {
+      return `Flexible dates · preferred ${window}`;
+    }
+    return "Flexible dates";
+  }
+  return window || "Dates TBD";
 }
 
 export function formatTravelWindow(
@@ -176,11 +216,67 @@ export function formatTripParty(trip: TravelRequest["trip"]) {
   ].join(" · ");
 }
 
+export type NamedTraveler = {
+  key: string;
+  role: "adult" | "child";
+  label: string;
+  name: string;
+  age?: number;
+  dob?: string;
+};
+
+export function namedTravelers(request: TravelRequest): NamedTraveler[] {
+  const party = tripPartyCounts(request.trip);
+  const intake = request.intake;
+  const requester =
+    [intake?.firstName, intake?.lastName].filter(Boolean).join(" ").trim() ||
+    request.traveler.fullName.trim();
+  const adultNames = intake?.adultNames?.length
+    ? intake.adultNames
+    : request.trip.adultNames ?? [];
+  const childNames = intake?.childNames?.length
+    ? intake.childNames
+    : request.trip.childNames ?? [];
+  const adultAges = request.trip.adultAges ?? [];
+  const childAges = request.trip.childAges ?? [];
+  const adultDobs = intake?.adultDobs ?? [];
+  const childDobs = intake?.childDobs ?? [];
+
+  const adults = Array.from({ length: party.adultsCount }, (_, index) => {
+    const named = String(adultNames[index] ?? "").trim();
+    return {
+      key: `adult-${index}`,
+      role: "adult" as const,
+      label: index === 0 ? "Primary traveler" : `Adult ${index + 1}`,
+      name: named || (index === 0 ? requester : "") || `Adult ${index + 1}`,
+      age: adultAges[index],
+      dob: adultDobs[index]?.trim() || undefined,
+    };
+  });
+  const children = Array.from({ length: party.childrenCount }, (_, index) => {
+    const named = String(childNames[index] ?? "").trim();
+    return {
+      key: `child-${index}`,
+      role: "child" as const,
+      label: `Child ${index + 1}`,
+      name: named || `Child ${index + 1}`,
+      age: childAges[index],
+      dob: childDobs[index]?.trim() || undefined,
+    };
+  });
+  return [...adults, ...children];
+}
+
 export function formatRequestParty(request: TravelRequest) {
-  if (request.intake && (request.intake.adultsCount || request.intake.childrenCount)) {
-    return formatPartySummary(request.intake);
-  }
-  return formatTripParty(request.trip);
+  return namedTravelers(request)
+    .map((person) => {
+      const bits = [
+        person.role === "child" ? "child" : "",
+        person.age != null ? String(person.age) : person.dob ? formatDisplayDate(person.dob) : "",
+      ].filter(Boolean);
+      return bits.length ? `${person.name} (${bits.join(", ")})` : person.name;
+    })
+    .join(" · ");
 }
 
 export function validateQuotePartyAges(input: {
@@ -229,6 +325,26 @@ export function quoteDefaultsFromRequest(request: TravelRequest): QuoteIntakeFie
   const travelers = party.travelers > 0 ? String(party.travelers) : "2";
   const adultsCount = intake?.adultsCount || String(party.adultsCount) || travelers || "2";
   const childrenCount = intake?.childrenCount || String(party.childrenCount) || "0";
+  const adultCount = Number(adultsCount) || 2;
+  const childCount = Number(childrenCount) || 0;
+  const requesterName = [intake?.firstName || names.firstName, intake?.lastName || names.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const adultNames = resizeList(
+    intake?.adultNames?.length ? intake.adultNames : request.trip.adultNames,
+    adultCount,
+    "",
+  ).map((name, index) => name.trim() || (index === 0 ? requesterName : ""));
+  const childNames = resizeList(
+    intake?.childNames?.length ? intake.childNames : request.trip.childNames,
+    childCount,
+    "",
+  );
+  const datesFlexible =
+    intake?.datesFlexible ??
+    isFlexibleDateMode(request.trip) ??
+    false;
 
   return {
     firstName: intake?.firstName || names.firstName,
@@ -249,13 +365,17 @@ export function quoteDefaultsFromRequest(request: TravelRequest): QuoteIntakeFie
     accessibilityNeeded: intake?.accessibilityNeeded ?? "",
     accessibilityNotes: intake?.accessibilityNotes ?? "",
     adultsCount,
-    adultDobs: resizeDobs(intake?.adultDobs, Number(adultsCount) || 2),
+    adultDobs: resizeDobs(intake?.adultDobs, adultCount),
+    adultNames,
     childrenCount,
-    childDobs: resizeDobs(intake?.childDobs, Number(childrenCount) || 0),
+    childDobs: resizeDobs(intake?.childDobs, childCount),
+    childNames,
     pets: intake?.pets ?? false,
     supportAnimal: intake?.supportAnimal ?? false,
     preferredAgent: intake?.preferredAgent || request.trip.preferredAgent,
     tripType: intake?.tripType || request.trip.tripType,
+    datesFlexible,
+    nickname: intake?.nickname || request.trip.nickname || request.trip.destination,
   };
 }
 
@@ -264,8 +384,11 @@ export function toTripIntake(
   tripType: TripType,
   completedAt = new Date().toISOString(),
 ): TripIntake {
+  const adults = Number(data.adultsCount) || 0;
+  const children = Number(data.childrenCount) || 0;
+  const bookingReady = Object.keys(validateQuoteIntake(data, tripType, "booking").errors).length === 0;
   return {
-    completedAt,
+    completedAt: bookingReady ? completedAt || new Date().toISOString() : "",
     firstName: data.firstName,
     lastName: data.lastName,
     address1: data.address1,
@@ -284,13 +407,19 @@ export function toTripIntake(
     accessibilityNeeded: data.accessibilityNeeded,
     accessibilityNotes: data.accessibilityNotes,
     adultsCount: data.adultsCount,
-    adultDobs: resizeDobs(data.adultDobs, Number(data.adultsCount) || 0),
+    adultDobs: resizeDobs(data.adultDobs, adults),
+    adultNames: resizeList(data.adultNames, adults, "").map((name, index) =>
+      name.trim() || (index === 0 ? [data.firstName, data.lastName].filter(Boolean).join(" ") : ""),
+    ),
     childrenCount: data.childrenCount,
-    childDobs: resizeDobs(data.childDobs, Number(data.childrenCount) || 0),
+    childDobs: resizeDobs(data.childDobs, children),
+    childNames: resizeList(data.childNames, children, ""),
     pets: data.pets,
     supportAnimal: data.supportAnimal,
     preferredAgent: data.preferredAgent,
     tripType,
+    datesFlexible: Boolean(data.datesFlexible),
+    nickname: data.nickname?.trim() || data.destination,
   };
 }
 
@@ -332,9 +461,11 @@ export type IntakeFieldErrors = Record<string, string>;
 export function validateQuoteIntake(
   data: QuoteIntakeFields,
   tripType: TripType,
+  stage: IntakeStage = "full",
 ): { errors: IntakeFieldErrors; warnings: string[] } {
   const errors: IntakeFieldErrors = {};
   const warnings: string[] = [];
+  const booking = stage === "booking" || stage === "full";
   const now = new Date();
   const today = [
     now.getFullYear(),
@@ -344,32 +475,47 @@ export function validateQuoteIntake(
 
   if (!data.firstName.trim()) errors.firstName = "Enter a first name.";
   if (!data.lastName.trim()) errors.lastName = "Enter a last name.";
-  if (!data.address1.trim()) errors.address1 = "Enter a street address.";
-  if (!data.city.trim()) errors.city = "Enter a city.";
-  if (!data.state.trim()) errors.state = "Select a state.";
-  if (!/^\d{5}$/.test(data.zip.trim())) errors.zip = "Enter a 5-digit ZIP code.";
+
+  if (booking) {
+    if (!data.address1.trim()) errors.address1 = "Enter a street address.";
+    if (!data.city.trim()) errors.city = "Enter a city.";
+    if (!data.state.trim()) errors.state = "Select a state.";
+    if (!/^\d{5}$/.test(data.zip.trim())) errors.zip = "Enter a 5-digit ZIP code.";
+  } else if (data.zip.trim() && !/^\d{5}$/.test(data.zip.trim())) {
+    errors.zip = "Enter a 5-digit ZIP code, or leave it blank until booking.";
+  }
 
   const phoneError = validateStoredPhone(data.phone);
   if (phoneError) errors.phone = phoneError;
   if (!EMAIL_PATTERN.test(data.email.trim())) errors.email = "Enter a valid email address.";
   if (!data.destination.trim()) errors.destination = "Enter a destination.";
 
-  if (!isIsoDate(data.departureDate)) {
-    errors.departureDate = "Choose a departure date.";
-  }
-  if (!isIsoDate(data.returnDate)) {
-    errors.returnDate = "Choose a return date.";
-  } else if (isIsoDate(data.departureDate) && data.returnDate < data.departureDate) {
-    errors.returnDate = "Return date cannot be before departure.";
+  const datesRequired = booking && !data.datesFlexible;
+  if (datesRequired || data.departureDate || data.returnDate) {
+    if (data.departureDate && !isIsoDate(data.departureDate)) {
+      errors.departureDate = "Choose a departure date.";
+    } else if (datesRequired && !isIsoDate(data.departureDate)) {
+      errors.departureDate = "Choose a departure date, or mark dates as flexible.";
+    }
+    if (data.returnDate && !isIsoDate(data.returnDate)) {
+      errors.returnDate = "Choose a return date.";
+    } else if (datesRequired && !isIsoDate(data.returnDate)) {
+      errors.returnDate = "Choose a return date, or mark dates as flexible.";
+    } else if (
+      isIsoDate(data.departureDate) &&
+      isIsoDate(data.returnDate) &&
+      data.returnDate < data.departureDate
+    ) {
+      errors.returnDate = "Return date cannot be before departure.";
+    }
   }
 
   const adults = Number(data.adultsCount);
   if (!Number.isInteger(adults) || adults < 1 || adults > 12) {
     errors.adultsCount = "Enter between 1 and 12 adults.";
-  } else if (data.adultDobs.length !== adults) {
-    errors.adultsCount = "Add a date of birth for each adult.";
-  } else {
-    data.adultDobs.forEach((dob, index) => {
+  } else if (booking) {
+    const dobs = resizeDobs(data.adultDobs, adults);
+    dobs.forEach((dob, index) => {
       if (!isIsoDate(dob)) {
         errors[`adultDob-${index}`] = `Enter a date of birth for Adult ${index + 1}.`;
       } else if (dob > today) {
@@ -378,15 +524,24 @@ export function validateQuoteIntake(
         errors[`adultDob-${index}`] = "Date of birth must be before departure.";
       }
     });
+  } else {
+    resizeDobs(data.adultDobs, adults).forEach((dob, index) => {
+      if (!dob) return;
+      if (!isIsoDate(dob)) {
+        errors[`adultDob-${index}`] = `Enter a valid date of birth for Adult ${index + 1}.`;
+      } else if (dob > today) {
+        errors[`adultDob-${index}`] = "Date of birth cannot be in the future.";
+      }
+    });
   }
 
   const children = Number(data.childrenCount);
   if (!Number.isInteger(children) || children < 0 || children > 12) {
     errors.childrenCount = "Enter between 0 and 12 children.";
-  } else if (data.childDobs.length !== children) {
-    errors.childrenCount = "Add a date of birth for each child.";
   } else {
-    data.childDobs.forEach((dob, index) => {
+    const dobs = resizeDobs(data.childDobs, children);
+    dobs.forEach((dob, index) => {
+      if (!dob && !booking) return;
       if (!isIsoDate(dob)) {
         errors[`childDob-${index}`] = `Enter a date of birth for Child ${index + 1}.`;
         return;
@@ -409,14 +564,17 @@ export function validateQuoteIntake(
   }
 
   if (!tripType) errors.tripType = "Select a trip type.";
-  if (data.accessibilityNeeded !== "Yes" && data.accessibilityNeeded !== "No") {
-    errors.accessibilityNeeded = "Select whether accessibility is needed.";
-  }
-
-  if (tripType === "cruise" && !data.transportationModes.includes("Cruise")) {
+  if (booking) {
+    if (data.accessibilityNeeded !== "Yes" && data.accessibilityNeeded !== "No") {
+      errors.accessibilityNeeded = "Select whether accessibility is needed.";
+    }
+    if (tripType === "cruise" && !data.transportationModes.includes("Cruise")) {
+      errors.transportationModes = "Cruise trips need Cruise as a mode of transportation.";
+    } else if (tripType !== "cruise" && data.transportationModes.length === 0) {
+      errors.transportationModes = "Select at least one mode of transportation.";
+    }
+  } else if (tripType === "cruise" && data.transportationModes.length > 0 && !data.transportationModes.includes("Cruise")) {
     errors.transportationModes = "Cruise trips need Cruise as a mode of transportation.";
-  } else if (tripType !== "cruise" && data.transportationModes.length === 0) {
-    errors.transportationModes = "Select at least one mode of transportation.";
   }
 
   return { errors, warnings };

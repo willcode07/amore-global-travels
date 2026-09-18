@@ -13,14 +13,17 @@ export const agents = [
 export const assignableAgents = agents.filter((agent) => agent.id !== "blank");
 export const defaultAssignedAgentId = "shonya";
 
-export function normalizeAssignedAgentId(value: unknown) {
+export function parseAgentId(value: unknown): string | null {
   const id = typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
   return (
     assignableAgents.find(
       (agent) => agent.id === id || agent.name.toLocaleLowerCase() === id,
-    )?.id ??
-    defaultAssignedAgentId
+    )?.id ?? null
   );
+}
+
+export function normalizeAssignedAgentId(value: unknown) {
+  return parseAgentId(value) ?? defaultAssignedAgentId;
 }
 
 export function assignedAgentIdForPreference(preferredAgent: unknown) {

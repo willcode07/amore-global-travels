@@ -21,6 +21,16 @@ import { emailsMatch, phonesMatch } from "@/lib/session";
 export { createId, createTripRef } from "@/lib/ids";
 
 const STORAGE_KEY = "amore_travel_requests";
+export const REQUESTS_CHANGED_EVENT = "amore-requests-changed";
+
+function emitRequestsChanged() {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(REQUESTS_CHANGED_EVENT));
+  } catch {
+    /* jsdom-less tests and private mode */
+  }
+}
 
 const tripTypes: TripType[] = [
   "cruise",
@@ -62,6 +72,16 @@ function asIsoDate(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function asStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? ""));
+}
+
+function asDateMode(value: unknown, travelWindow: string): TravelRequest["trip"]["dateMode"] {
+  if (value === "flexible" || value === "fixed") return value;
+  return /flexible/i.test(travelWindow) ? "flexible" : "fixed";
 }
 
 function asNumberList(value: unknown) {
@@ -112,6 +132,7 @@ function normalizeTrip(raw: TravelRequest["trip"]): TravelRequest["trip"] {
     preferences: raw?.preferences ?? "",
     preferredAgent: raw?.preferredAgent ?? "",
   });
+  const travelWindow = String(raw?.travelWindow ?? "");
   return {
     ...raw,
     tripType: asTripType(raw?.tripType),
@@ -121,6 +142,12 @@ function normalizeTrip(raw: TravelRequest["trip"]): TravelRequest["trip"] {
     childrenCount: party.childrenCount,
     adultAges: asNumberList(raw?.adultAges),
     childAges: asNumberList(raw?.childAges),
+    adultNames: asStringList(raw?.adultNames),
+    childNames: asStringList(raw?.childNames),
+    nickname: String(raw?.nickname ?? "").trim() || undefined,
+    dateMode: asDateMode(raw?.dateMode, travelWindow),
+    requestedTravelWindow:
+      String(raw?.requestedTravelWindow ?? "").trim() || undefined,
   };
 }
 
@@ -139,6 +166,10 @@ function normalizeIntake(raw: TravelRequest["intake"]): TripIntake | undefined {
     notes: String(raw.notes ?? ""),
     adultDobs: Array.isArray(raw.adultDobs) ? raw.adultDobs.map(String) : [],
     childDobs: Array.isArray(raw.childDobs) ? raw.childDobs.map(String) : [],
+    adultNames: asStringList(raw.adultNames),
+    childNames: asStringList(raw.childNames),
+    datesFlexible: Boolean(raw.datesFlexible),
+    nickname: String(raw.nickname ?? "").trim() || undefined,
     tripType: asTripType(raw.tripType),
   };
 }
@@ -173,11 +204,15 @@ function normalizeRequest(raw: TravelRequest): TravelRequest {
     paidAt: asIsoDate(raw.paidAt),
     refundedAt: asIsoDate(raw.refundedAt),
     quotes: Array.isArray(raw.quotes) ? raw.quotes : [],
+    quoteHistory: Array.isArray(raw.quoteHistory) ? raw.quoteHistory : [],
     options: Array.isArray(raw.options) ? raw.options : [],
     messages: normalizeMessages(raw.messages),
     clienteaseRef: raw.clienteaseRef ?? null,
     intake: normalizeIntake(raw.intake),
     trip: normalizeTrip(raw.trip),
+    auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
+    lastUpdatedBy: raw.lastUpdatedBy,
+    lastUpdatedAt: raw.lastUpdatedAt,
   };
 }
 
@@ -230,6 +265,7 @@ export function readRequests(): TravelRequest[] {
 export function writeRequests(requests: TravelRequest[]) {
   if (!canUseStorage()) return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests }));
+  emitRequestsChanged();
 }
 
 export function getRequestById(id: string) {

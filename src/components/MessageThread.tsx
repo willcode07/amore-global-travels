@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createId } from "@/lib/ids";
+import { formatTimestamp } from "@/lib/intake";
 import { isApiBackend } from "@/lib/data/mode";
+import { isNoticeMessage, markRequestRead } from "@/lib/message-read";
 import { addMessage } from "@/lib/requests";
 import { uploadTripFile } from "@/lib/uploads";
 import { Message, MessageAttachment, MessageSender } from "@/lib/types";
@@ -102,16 +104,45 @@ export function MessageThread({
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [sending, setSending] = useState(false);
+  const [attaching, setAttaching] = useState(false);
   const [error, setError] = useState("");
+  const [sentNote, setSentNote] = useState("");
+  const canSend = Boolean(body.trim() || attachments.length);
+  const notices = useMemo(
+    () => (sender === "agent" ? messages.filter((message) => isNoticeMessage(message)) : []),
+    [messages, sender],
+  );
+  const chat = useMemo(
+    () =>
+      sender === "agent"
+        ? messages.filter((message) => !isNoticeMessage(message))
+        : messages,
+    [messages, sender],
+  );
+
+  useEffect(() => {
+    setSentNote("");
+    setError("");
+    setBody("");
+    setAttachments([]);
+  }, [requestId]);
+
+  useEffect(() => {
+    if (sender === "agent") markRequestRead(requestId);
+  }, [sender, requestId, messages.length]);
+  const attachHint = "PDF or image (JPG, PNG, WebP, GIF) · 1.5 MB each · up to 3 files";
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList?.length) return;
     setError("");
+    setAttaching(true);
     try {
       const next = await Promise.all(Array.from(fileList).map((file) => toAttachment(file, requestId)));
       setAttachments((current) => [...current, ...next].slice(0, 3));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to attach that file.");
+    } finally {
+      setAttaching(false);
     }
   }
 
@@ -132,6 +163,11 @@ export function MessageThread({
       onSent(updated.messages);
       setBody("");
       setAttachments([]);
+      setSentNote(
+        sender === "agent"
+          ? "Sent. The traveler will see this in their dashboard."
+          : "Sent. Your agent will see this on their desk.",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to send message.");
     } finally {
@@ -146,16 +182,38 @@ export function MessageThread({
         <p className="mt-1 text-sm text-muted">
           {sender === "traveler"
             ? "Talk with your agent about this trip. You can attach a PDF or image."
-            : "Replies email the traveler. Drop a flyer or screenshot here if you need to."}
+            : "Type a reply for this traveler. Automatic notices stay in the list below, separate from this chat."}
         </p>
+        <p className="mt-1 text-xs text-muted">{attachHint}</p>
       </div>
 
-      <div className="max-h-80 space-y-3 overflow-y-auto px-5 py-4">
-        {messages.length === 0 && (
+      <div className="min-h-48 space-y-3 px-5 py-4">
+        {notices.length > 0 ? (
+          <details className="rounded-2xl bg-cream px-4 py-3">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              Automatic notices ({notices.length})
+            </summary>
+            <ul className="mt-3 space-y-2 text-sm text-ink">
+              {notices.map((message) => (
+                <li key={message.id}>
+                  <span className="text-xs text-muted">
+                    Notice · {formatTimestamp(message.createdAt)}
+                  </span>
+                  <p className="mt-1 whitespace-pre-wrap leading-relaxed">{message.body}</p>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {chat.length === 0 && notices.length === 0 && (
           <p className="text-sm text-muted">No messages yet.</p>
         )}
-        {messages.map((message) => {
+        {chat.map((message) => {
           const mine = message.sender === sender;
+          const who =
+            message.sender === "traveler"
+              ? message.senderName || "Traveler"
+              : message.senderName || "Agent";
           return (
             <div
               key={message.id}
@@ -166,8 +224,7 @@ export function MessageThread({
               }`}
             >
               <div className={`mb-1 text-xs ${mine ? "text-on-brand/70" : "text-muted"}`}>
-                {message.senderName} ·{" "}
-                {new Date(message.createdAt).toLocaleString()}
+                {who} · {formatTimestamp(message.createdAt)}
               </div>
               {message.body ? (
                 <p className="whitespace-pre-wrap leading-relaxed">{message.body}</p>
@@ -220,7 +277,9 @@ export function MessageThread({
             ))}
           </ul>
         ) : null}
+        {sentNote && <p className="mt-2 text-sm text-emerald-800">{sentNote}</p>}
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+        {attaching ? <p className="mt-2 text-sm text-muted">Attaching file…</p> : null}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="cursor-pointer rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink">
             Attach file
@@ -237,12 +296,18 @@ export function MessageThread({
           </label>
           <button
             type="submit"
-            disabled={sending || (!body.trim() && attachments.length === 0)}
+            disabled={sending || attaching || !canSend}
+            title={canSend ? "Send message" : "Type a message or attach a file to send."}
             className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold transition hover:brightness-95 disabled:opacity-60"
           >
             {sending ? "Sending..." : "Send message"}
           </button>
         </div>
+        {!canSend ? (
+          <p className="mt-2 text-xs text-muted">
+            Type a message or attach a file to send.
+          </p>
+        ) : null}
       </form>
     </div>
   );

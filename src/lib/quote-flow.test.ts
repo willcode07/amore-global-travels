@@ -6,8 +6,9 @@ import {
   validatePhoneParts,
   validateStoredPhone,
 } from "@/lib/phone";
-import { formatRequestParty, validateQuotePartyAges } from "@/lib/intake";
+import { formatRequestParty, toTripIntake, validateQuoteIntake, validateQuotePartyAges } from "@/lib/intake";
 import { applyCreate, applyMessage, applyUpdate } from "@/lib/request-ops";
+import { travelerFacingStatus } from "@/lib/journey";
 import type { ResearchEvidence } from "@/lib/quote-research";
 import type { TravelProposal } from "@/lib/types";
 
@@ -93,8 +94,12 @@ test("quote requests store adult and child ages without trip details", () => {
   assert.deepEqual(request.trip.adultAges, [42, 68]);
   assert.deepEqual(request.trip.childAges, [9]);
   assert.equal(request.trip.travelers, 3);
-  assert.match(formatRequestParty(request), /Adults 2 — 42, 68/);
-  assert.match(formatRequestParty(request), /Children 17 and under 1 — 9/);
+  assert.match(formatRequestParty(request), /William Johnson \(42\)/);
+  assert.match(formatRequestParty(request), /Adult 2 \(68\)/);
+  assert.match(formatRequestParty(request), /Child 1 \(child, 9\)/);
+  assert.equal(request.trip.nickname, "Peru");
+  assert.equal(request.trip.dateMode, "fixed");
+  assert.equal(request.trip.adultNames?.[0], "William Johnson");
   assert.match(request.messages[0]?.body ?? "", /usually within 24 hours/i);
   assert.doesNotMatch(request.messages[0]?.body ?? "", /complete your trip details/i);
 });
@@ -155,3 +160,117 @@ test("messages can include a flyer attachment without a text body", () => {
   assert.equal(message?.attachments?.[0]?.name, "caribbean-flyer.pdf");
   assert.match(message?.body ?? "", /Shared a file/i);
 });
+
+test("quote-stage details do not require address or dates of birth", () => {
+  const data = {
+    firstName: "Jordan",
+    lastName: "Lee",
+    address1: "",
+    address2: "",
+    city: "",
+    state: "",
+    zip: "",
+    phone: "+1 4045550199",
+    email: "jordan@example.com",
+    preferredContactMethods: [],
+    destination: "Paris",
+    transportationModes: [],
+    departureDate: "",
+    returnDate: "",
+    preferences: "",
+    accessibilityNeeded: "",
+    accessibilityNotes: "",
+    adultsCount: "2",
+    adultDobs: ["", ""],
+    adultNames: ["Jordan Lee", ""],
+    childrenCount: "1",
+    childDobs: [""],
+    childNames: [""],
+    pets: false,
+    supportAnimal: false,
+    preferredAgent: "",
+    datesFlexible: true,
+    nickname: "Paris with family",
+  };
+  const quoteStage = validateQuoteIntake(data, "vacation_package", "quote");
+  assert.deepEqual(quoteStage.errors, {});
+  const bookingStage = validateQuoteIntake(data, "vacation_package", "booking");
+  assert.ok(bookingStage.errors.address1);
+  assert.ok(bookingStage.errors["adultDob-0"]);
+});
+
+test("traveler-facing status follows quotes even if stored status is stale", () => {
+  const request = applyCreate({
+    fullName: "Jordan Lee",
+    email: "jordan@example.com",
+    phone: "+1 4045550199",
+    destination: "Paris",
+    travelWindow: "Flexible dates",
+    adultsCount: 2,
+    adultAges: [34, 36],
+  });
+  const withQuote = applyUpdate(request, { quote: publishableQuote() });
+  const stale = { ...withQuote, status: "submitted" as const, progressStatus: "submitted" as const };
+  assert.equal(travelerFacingStatus(stale), "options_ready");
+  const confirmed = applyUpdate(withQuote, {
+    paymentStatus: "paid",
+    status: "booking_confirmed",
+  });
+  assert.equal(travelerFacingStatus(confirmed), "booking_confirmed");
+});
+
+test("preferred dates on a flexible trip stay labeled flexible", () => {
+  const request = applyCreate({
+    fullName: "Jordan Lee",
+    email: "jordan@example.com",
+    phone: "+1 4045550199",
+    destination: "Paris",
+    travelWindow: "Flexible dates",
+    adultsCount: 2,
+    childrenCount: 1,
+    adultAges: [34, 36],
+    childAges: [9],
+  });
+  assert.equal(request.trip.dateMode, "flexible");
+  const intake = toTripIntake(
+    {
+      firstName: "Jordan",
+      lastName: "Lee",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+      phone: "+1 4045550199",
+      email: "jordan@example.com",
+      preferredContactMethods: [],
+      destination: "Paris",
+      transportationModes: [],
+      departureDate: "2026-11-10",
+      returnDate: "2026-11-17",
+      preferences: "",
+      accessibilityNeeded: "",
+      accessibilityNotes: "",
+      adultsCount: "2",
+      adultDobs: ["", ""],
+      adultNames: ["Jordan Lee", "Alex Lee"],
+      childrenCount: "1",
+      childDobs: [""],
+      childNames: ["Sam Lee"],
+      pets: false,
+      supportAnimal: false,
+      preferredAgent: "",
+      datesFlexible: true,
+      nickname: "Paris with family",
+    },
+    "vacation_package",
+  );
+  assert.equal(intake.completedAt, "");
+  const updated = applyUpdate(request, { intake });
+  assert.equal(updated.trip.dateMode, "flexible");
+  assert.equal(updated.trip.nickname, "Paris with family");
+  assert.match(updated.trip.travelWindow, /Nov/);
+  assert.equal(updated.trip.adultNames?.[1], "Alex Lee");
+  assert.equal(updated.trip.childNames?.[0], "Sam Lee");
+});
+

@@ -1,4 +1,5 @@
-import type { RequestStatus } from "@/lib/types";
+import { furthestStatus, getProgressStatus } from "@/lib/agents";
+import type { RequestStatus, TravelRequest } from "@/lib/types";
 
 export const journeySteps = [
   {
@@ -65,4 +66,16 @@ export function statusForJourneyStage(stage: number): RequestStatus {
 
 export function tripNeedsReview(status: RequestStatus) {
   return journeyStageIndex(status) === 1;
+}
+
+/** Ladder status that cannot lag behind quotes, selections, or confirmation. */
+export function travelerFacingStatus(request: TravelRequest): RequestStatus {
+  let status = getProgressStatus(request);
+  if (request.quotes.length > 0 || request.options.length > 0) {
+    status = furthestStatus(status, "options_ready");
+  }
+  if (request.selectedQuoteId || request.selectedOptionId) {
+    status = furthestStatus(status, "option_selected");
+  }
+  return status;
 }

@@ -6,6 +6,7 @@ import {
 import { createId, createTripRef } from "@/lib/ids";
 import { formatTravelWindow, parseAgeList, travelerCountFromIntake, tripPartyCounts } from "@/lib/intake";
 import { evaluateQuoteQuality } from "@/lib/quote-quality";
+import { paymentReadyToConfirm } from "@/lib/agent-desk";
 import {
   MessageSender,
   InstallmentPayment,
@@ -46,6 +47,10 @@ export type CreateRequestInput = {
   tripType?: TripType;
   persistSession?: boolean;
   intake?: TripIntake;
+  nickname?: string;
+  dateMode?: TravelRequest["trip"]["dateMode"];
+  adultNames?: string[];
+  childNames?: string[];
 };
 
 export type UpdateRequestBody = {
@@ -71,6 +76,12 @@ export type UpdateRequestBody = {
   selectedQuoteId?: string;
   silent?: boolean;
   clienteaseRef?: string | null;
+  audit?: {
+    agentId: string;
+    agentName: string;
+    action: string;
+    detail?: string;
+  };
 };
 
 export type AddMessageInput = {
@@ -95,6 +106,8 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
   const phone = String(input.phone).trim() || "404-500-7045";
   const destination = String(input.destination).trim() || "Demo destination";
   const travelWindow = String(input.travelWindow).trim() || "Flexible dates";
+  const dateMode =
+    input.dateMode ?? (/flexible/i.test(travelWindow) ? "flexible" : "fixed");
   const adultAges = parseAgeList(input.adultAges);
   const childAges = parseAgeList(input.childAges);
   const childrenCount = Math.max(0, Number(input.childrenCount) || childAges.length || 0);
@@ -104,6 +117,14 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
       ? adultsFromInput
       : adultAges.length || Math.max(1, (Number(input.travelers) || 1) - childrenCount);
   const travelers = adultsCount + childrenCount || Number(input.travelers) || 1;
+  const adultNames = Array.from({ length: adultsCount }, (_, index) => {
+    const provided = String(input.adultNames?.[index] ?? "").trim();
+    if (provided) return provided;
+    return index === 0 ? fullName : "";
+  });
+  const childNames = Array.from({ length: childrenCount }, (_, index) =>
+    String(input.childNames?.[index] ?? "").trim(),
+  );
 
   return {
     id: createId("req"),
@@ -135,11 +156,16 @@ export function applyCreate(input: CreateRequestInput): TravelRequest {
       childrenCount,
       adultAges,
       childAges,
+      adultNames,
+      childNames,
       budget: String(input.budget ?? "").trim(),
       tripType: input.tripType ?? "not_sure",
       tripStyle: Array.isArray(input.tripStyle) ? input.tripStyle.map(String) : [],
       preferences: String(input.preferences ?? "").trim(),
       preferredAgent: String(input.preferredAgent ?? "").trim(),
+      nickname: String(input.nickname ?? "").trim() || destination,
+      dateMode,
+      requestedTravelWindow: travelWindow,
     },
     intake: input.intake,
     options: [],
@@ -164,6 +190,22 @@ export function applyUpdate(
 
   if (body.status) {
     const nextStatus = body.status;
+    const nextPaymentStatus = body.paymentStatus ?? existing.paymentStatus;
+    const nextPlanType = body.paymentPlanType
+      ? normalizePaymentPlanType(body.paymentPlanType)
+      : existing.paymentPlanType ?? "none";
+    if (
+      nextStatus === "booking_confirmed" &&
+      existing.status !== "booking_confirmed" &&
+      !paymentReadyToConfirm({
+        paymentStatus: nextPaymentStatus,
+        paymentPlanType: nextPlanType,
+      })
+    ) {
+      throw new Error(
+        "Set payment to Paid or save a payment plan before marking Trip Confirmed.",
+      );
+    }
     updated.status = nextStatus;
     updated.progressStatus = furthestStatus(
       nextStatus,
@@ -179,6 +221,7 @@ export function applyUpdate(
           id: createId("msg"),
           sender: "agent",
           senderName: "Amore Global Agent",
+          kind: "notice",
           body: `Wonderful news, ${travelerFirstName(updated)}! Your trip has been confirmed. We’ll send your travel details and next steps as they are finalized.`,
           createdAt: updated.updatedAt,
         },
@@ -262,20 +305,42 @@ export function applyUpdate(
       email: intake.email.trim() || existing.traveler.email,
       phone: intake.phone.trim() || existing.traveler.phone,
     };
+    const dateMode = intake.datesFlexible
+      ? "flexible"
+      : intake.departureDate && intake.returnDate
+        ? "fixed"
+        : updated.trip.dateMode;
+    const nextWindow = formatTravelWindow(
+      intake.departureDate,
+      intake.returnDate,
+      dateMode === "flexible"
+        ? updated.trip.requestedTravelWindow || "Flexible dates"
+        : updated.trip.travelWindow,
+    );
     updated.trip = {
       ...updated.trip,
       destination: intake.destination.trim() || updated.trip.destination,
-      travelWindow: formatTravelWindow(
-        intake.departureDate,
-        intake.returnDate,
-        updated.trip.travelWindow,
-      ),
+      travelWindow: nextWindow,
       travelers: travelers || updated.trip.travelers,
       adultsCount: party.adultsCount,
       childrenCount: party.childrenCount,
+      adultNames: Array.from({ length: party.adultsCount }, (_, index) => {
+        const fromIntake = String(intake.adultNames?.[index] ?? "").trim();
+        if (fromIntake) return fromIntake;
+        if (index === 0) return fullName || updated.trip.adultNames?.[0] || "";
+        return updated.trip.adultNames?.[index] ?? "";
+      }),
+      childNames: Array.from({ length: party.childrenCount }, (_, index) =>
+        String(intake.childNames?.[index] ?? updated.trip.childNames?.[index] ?? "").trim(),
+      ),
       tripType: intake.tripType || updated.trip.tripType,
       preferredAgent: intake.preferredAgent.trim() || updated.trip.preferredAgent,
       preferences: intake.notes.trim(),
+      nickname:
+        intake.nickname?.trim() || updated.trip.nickname || updated.trip.destination,
+      dateMode,
+      requestedTravelWindow:
+        updated.trip.requestedTravelWindow || updated.trip.travelWindow,
     };
     if (
       !body.assignedAgentId &&
@@ -324,6 +389,8 @@ export function applyUpdate(
     const quote = { ...body.quote, id: body.quote.id || createId("quote") };
     const existingIndex = updated.quotes.findIndex((item) => item.id === quote.id);
     if (existingIndex >= 0) {
+      const previous = updated.quotes[existingIndex];
+      updated.quoteHistory = [previous, ...(updated.quoteHistory ?? [])].slice(0, 8);
       updated.quotes = updated.quotes.map((item) =>
         item.id === quote.id ? quote : item,
       );
@@ -335,6 +402,7 @@ export function applyUpdate(
           id: createId("msg"),
           sender: "agent",
           senderName: "Amore Global Agent",
+          kind: "notice",
           body: `Hi ${travelerFirstName(updated)}! Your quote is ready to review in your dashboard. Please let me know if you have any questions or would like any changes.`,
           createdAt: new Date().toISOString(),
         },
@@ -401,6 +469,20 @@ export function applyUpdate(
     }
   }
 
+  if (body.audit) {
+    const event = {
+      id: createId("audit"),
+      at: updated.updatedAt,
+      agentId: body.audit.agentId,
+      agentName: body.audit.agentName,
+      action: body.audit.action,
+      detail: body.audit.detail,
+    };
+    updated.auditLog = [...(existing.auditLog ?? []), event].slice(-40);
+    updated.lastUpdatedBy = body.audit.agentId;
+    updated.lastUpdatedAt = updated.updatedAt;
+  }
+
   return updated;
 }
 
@@ -424,6 +506,7 @@ export function applyMessage(
     body: messageBody || (attachments.length === 1 ? "Shared a file." : "Shared files."),
     createdAt: new Date().toISOString(),
     attachments: attachments.length ? attachments : undefined,
+    kind: "chat" as const,
   };
 
   return {

@@ -9,7 +9,7 @@ import {
   transportationOptions,
   tripTypeOptions,
 } from "@/lib/agents";
-import { QuoteIntakeFields, resizeDobs, toInputDate, validateQuoteIntake } from "@/lib/intake";
+import { QuoteIntakeFields, IntakeStage, resizeDobs, resizeList, toInputDate, validateQuoteIntake } from "@/lib/intake";
 import { lookupUsZip } from "@/lib/places";
 import { site } from "@/lib/site";
 import { TripType } from "@/lib/types";
@@ -25,6 +25,7 @@ type QuoteIntakeFormProps = {
   showPdfNote?: boolean;
   framed?: boolean;
   saving?: boolean;
+  stage?: IntakeStage;
   onSubmit: (data: QuoteIntakeFields, tripType: TripType) => Promise<void> | void;
 };
 
@@ -164,6 +165,7 @@ export function QuoteIntakeForm({
   showPdfNote = false,
   framed = true,
   saving = false,
+  stage = "full",
   onSubmit,
 }: QuoteIntakeFormProps) {
   const [contactMethods, setContactMethods] = useState<string[]>(
@@ -201,6 +203,15 @@ export function QuoteIntakeForm({
   const [childDobs, setChildDobs] = useState(() =>
     resizeDobs(defaults.childDobs, Number(defaults.childrenCount ?? "0") || 0),
   );
+  const [adultNames, setAdultNames] = useState(() =>
+    resizeList(defaults.adultNames, Number(defaults.adultsCount ?? "2") || 2, ""),
+  );
+  const [childNames, setChildNames] = useState(() =>
+    resizeList(defaults.childNames, Number(defaults.childrenCount ?? "0") || 0, ""),
+  );
+  const [datesFlexible, setDatesFlexible] = useState(Boolean(defaults.datesFlexible));
+  const [nickname, setNickname] = useState(defaults.nickname ?? defaults.destination ?? "");
+  const booking = stage === "booking" || stage === "full";
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -244,11 +255,15 @@ export function QuoteIntakeForm({
       accessibilityNotes: String(form.get("accessibilityNotes") ?? "").trim(),
       adultsCount: String(adultsCount).trim(),
       adultDobs,
+      adultNames,
       childrenCount: String(childrenCount).trim(),
       childDobs,
+      childNames,
       pets,
       supportAnimal,
       preferredAgent: String(form.get("preferredAgent") ?? "").trim(),
+      datesFlexible,
+      nickname: nickname.trim() || destination.trim(),
     };
   }
 
@@ -262,7 +277,7 @@ export function QuoteIntakeForm({
         current.includes("Cruise") ? current : [...current, "Cruise"],
       );
     }
-    const result = validateQuoteIntake(data, tripType);
+    const result = validateQuoteIntake(data, tripType, stage);
     setFieldErrors(result.errors);
     setWarnings(result.warnings);
     if (Object.keys(result.errors).length > 0) {
@@ -318,13 +333,31 @@ export function QuoteIntakeForm({
         />
       </div>
       <Field
+        label="Trip nickname"
+        name="nickname"
+        value={nickname}
+        onChange={setNickname}
+        placeholder="Paris anniversary, Jamaica with Mom…"
+      />
+
+      <div className="rounded-2xl border border-line bg-cream/60 p-4">
+        <p className="text-sm font-medium text-ink">
+          {booking ? "Booking details" : "Needed later to book"}
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          {booking
+            ? "Vendors need a mailing address and dates of birth to issue tickets. We only ask once you choose an option."
+            : "Home address, dates of birth, and how you’ll get there are for booking — not for a quote. Save them later, or add them now if you already have them."}
+        </p>
+        <div className="mt-4 grid gap-4">
+      <Field
         label="Address 1"
         name="address1"
         value={address1}
         onChange={setAddress1}
         autoComplete="street-address"
         placeholder="Street address"
-        required
+        required={booking}
         error={fieldErrors.address1}
       />
       <Field
@@ -342,15 +375,17 @@ export function QuoteIntakeForm({
           onChange={setCity}
           autoComplete="address-level2"
           placeholder="City"
-          required
+          required={booking}
           error={fieldErrors.city}
         />
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium text-ink">State *</span>
+          <span className="mb-1.5 block font-medium text-ink">
+            State{booking ? " *" : ""}
+          </span>
           <select
             name="state"
             value={state}
-            required
+            required={booking}
             onChange={(event) => setState(event.target.value)}
             className={`w-full rounded-xl border bg-surface px-4 py-3 outline-none ring-gold focus:ring-2 ${
               fieldErrors.state ? "border-red-500" : "border-line"
@@ -368,11 +403,13 @@ export function QuoteIntakeForm({
           ) : null}
         </label>
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium text-ink">ZIP code *</span>
+          <span className="mb-1.5 block font-medium text-ink">
+            ZIP code{booking ? " *" : ""}
+          </span>
           <input
             name="zip"
             value={zip}
-            required
+            required={booking}
             autoComplete="postal-code"
             inputMode="numeric"
             onChange={(event) => setZip(event.target.value)}
@@ -395,6 +432,8 @@ export function QuoteIntakeForm({
       <p className="-mt-1 text-xs text-muted">
         ZIP fills city and state when it matches a US code.
       </p>
+        </div>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <PhoneField
           label="Phone number"
@@ -465,8 +504,13 @@ export function QuoteIntakeForm({
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink">
-          Mode of transportation (all that apply) *
+          Mode of transportation (all that apply){booking ? " *" : ""}
         </legend>
+        <p className="mb-2 text-xs text-muted">
+          {booking
+            ? "How this party will get there — needed to book flights, transfers, or a cruise."
+            : "Optional until booking. Skip this if you only need a quote."}
+        </p>
         <div className="flex flex-wrap gap-2">
           {transportationOptions.map((mode) => (
             <Chip
@@ -485,27 +529,45 @@ export function QuoteIntakeForm({
         ) : null}
       </fieldset>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DateField
-          label="Departure date"
-          name="departureDate"
-          value={departureDate}
-          onChange={(value) => {
-            setDepartureDate(value);
-            if (returnDate && value && returnDate < value) setReturnDate("");
-          }}
-          required
-          error={fieldErrors.departureDate}
-        />
-        <DateField
-          label="Return date"
-          name="returnDate"
-          value={returnDate}
-          onChange={setReturnDate}
-          min={departureDate || undefined}
-          required
-          error={fieldErrors.returnDate}
-        />
+      <div>
+        <label className="mb-3 flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={datesFlexible}
+            onChange={(event) => setDatesFlexible(event.target.checked)}
+            className="h-4 w-4 rounded border-line"
+          />
+          Dates are still flexible
+        </label>
+        <p className="mb-3 text-xs text-muted">
+          {datesFlexible
+            ? "You can leave dates blank, or add a preferred window without locking the trip."
+            : booking
+              ? "Fixed dates are required to book."
+              : "Optional for a quote. Add dates if you already know them."}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DateField
+            label={datesFlexible ? "Preferred departure" : "Departure date"}
+            name="departureDate"
+            value={departureDate}
+            onChange={(value) => {
+              setDepartureDate(value);
+              if (returnDate && value && returnDate < value) setReturnDate("");
+            }}
+            required={booking && !datesFlexible}
+            error={fieldErrors.departureDate}
+          />
+          <DateField
+            label={datesFlexible ? "Preferred return" : "Return date"}
+            name="returnDate"
+            value={returnDate}
+            onChange={setReturnDate}
+            min={departureDate || undefined}
+            required={booking && !datesFlexible}
+            error={fieldErrors.returnDate}
+          />
+        </div>
       </div>
 
       <label className="block text-sm">
@@ -521,8 +583,13 @@ export function QuoteIntakeForm({
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink">
-          Disability accessibility needed? *
+          Disability accessibility needed?{booking ? " *" : ""}
         </legend>
+        <p className="mb-2 text-xs text-muted">
+          {booking
+            ? "Vendors need this before they can confirm rooms or cabins."
+            : "Optional until booking."}
+        </p>
         <div className="flex flex-wrap gap-2">
           {["Yes", "No"].map((value) => (
             <Chip
@@ -569,6 +636,7 @@ export function QuoteIntakeForm({
                 const count = Number(value);
                 if (Number.isInteger(count) && count >= 1 && count <= 12) {
                   setAdultDobs((current) => resizeDobs(current, count));
+                  setAdultNames((current) => resizeList(current, count, ""));
                 }
               }}
               className={`w-full rounded-xl border bg-surface px-4 py-3 outline-none ring-gold focus:ring-2 ${
@@ -593,6 +661,7 @@ export function QuoteIntakeForm({
                 const count = Number(value);
                 if (Number.isInteger(count) && count >= 0 && count <= 12) {
                   setChildDobs((current) => resizeDobs(current, count));
+                  setChildNames((current) => resizeList(current, count, ""));
                 }
               }}
               className={`w-full rounded-xl border bg-surface px-4 py-3 outline-none ring-gold focus:ring-2 ${
@@ -609,38 +678,62 @@ export function QuoteIntakeForm({
         {adultDobs.length > 0 ? (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {adultDobs.map((dob, index) => (
-              <DateField
-                key={`adult-dob-${index}`}
-                label={`DOB Adult ${index + 1}`}
-                value={dob}
-                max={maxDob}
-                required
-                error={fieldErrors[`adultDob-${index}`]}
-                onChange={(next) => {
-                  setAdultDobs((current) =>
-                    current.map((item, itemIndex) => (itemIndex === index ? next : item)),
-                  );
-                }}
-              />
+              <div key={`adult-${index}`} className="grid gap-3">
+                <Field
+                  label={index === 0 ? "Primary traveler name" : `Adult ${index + 1} name`}
+                  name={`adultName-${index}`}
+                  value={adultNames[index] ?? ""}
+                  onChange={(next) => {
+                    setAdultNames((current) =>
+                      current.map((item, itemIndex) => (itemIndex === index ? next : item)),
+                    );
+                  }}
+                  placeholder={index === 0 ? `${firstName} ${lastName}`.trim() : "First and last name"}
+                />
+                <DateField
+                  label={`DOB Adult ${index + 1}${booking ? "" : " (optional)"}`}
+                  value={dob}
+                  max={maxDob}
+                  required={booking}
+                  error={fieldErrors[`adultDob-${index}`]}
+                  onChange={(next) => {
+                    setAdultDobs((current) =>
+                      current.map((item, itemIndex) => (itemIndex === index ? next : item)),
+                    );
+                  }}
+                />
+              </div>
             ))}
           </div>
         ) : null}
         {childDobs.length > 0 ? (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {childDobs.map((dob, index) => (
-              <DateField
-                key={`child-dob-${index}`}
-                label={`DOB Child ${index + 1}`}
-                value={dob}
-                max={maxDob}
-                required
-                error={fieldErrors[`childDob-${index}`]}
-                onChange={(next) => {
-                  setChildDobs((current) =>
-                    current.map((item, itemIndex) => (itemIndex === index ? next : item)),
-                  );
-                }}
-              />
+              <div key={`child-${index}`} className="grid gap-3">
+                <Field
+                  label={`Child ${index + 1} name`}
+                  name={`childName-${index}`}
+                  value={childNames[index] ?? ""}
+                  onChange={(next) => {
+                    setChildNames((current) =>
+                      current.map((item, itemIndex) => (itemIndex === index ? next : item)),
+                    );
+                  }}
+                  placeholder="First and last name"
+                />
+                <DateField
+                  label={`DOB Child ${index + 1}${booking ? "" : " (optional)"}`}
+                  value={dob}
+                  max={maxDob}
+                  required={booking}
+                  error={fieldErrors[`childDob-${index}`]}
+                  onChange={(next) => {
+                    setChildDobs((current) =>
+                      current.map((item, itemIndex) => (itemIndex === index ? next : item)),
+                    );
+                  }}
+                />
+              </div>
             ))}
           </div>
         ) : null}

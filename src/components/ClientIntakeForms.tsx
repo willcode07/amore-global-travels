@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { QuoteIntakeForm } from "@/components/QuoteIntakeForm";
+import { StartTravelButton } from "@/components/RequestModalProvider";
 import {
   contactMailtoBody,
   downloadContactPdf,
@@ -173,12 +174,9 @@ export function ClientIntakeForms({
                 Request a Quote
               </button>
             ) : (
-              <a
-                href="/request-a-quote"
-                className="font-semibold text-gold-deep underline underline-offset-2"
-              >
+              <StartTravelButton className="font-semibold text-gold-deep underline underline-offset-2">
                 Request a Quote
-              </a>
+              </StartTravelButton>
             )}
           </p>
         )}
@@ -188,6 +186,7 @@ export function ClientIntakeForms({
         <div>
           <QuoteIntakeForm
             key={quoteFormKey}
+            stage="full"
             title="Request a Quote"
             description={`Full questionnaire. PDF routes to ${site.email}${
               createInboxRequest ? " and creates an inbox request." : "."

@@ -56,7 +56,7 @@ export async function updateRequest(id: string, body: UpdateRequestBody) {
       notifyEvent("option_selected", updated);
       notifyEvent("status_updated", updated);
     }
-    if (body.intake) {
+    if (body.intake && updated.intake?.completedAt) {
       notifyEvent("intake_completed", updated);
     }
   }

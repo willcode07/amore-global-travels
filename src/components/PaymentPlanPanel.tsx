@@ -136,7 +136,7 @@ export function PaymentPlanPanel({
 
   return (
     <PaymentPlanEditor
-      key={request.id}
+      key={`${request.id}-${planType}-${schedule.length}`}
       initialType={planType}
       initialSchedule={schedule}
       saving={saving}
@@ -165,6 +165,7 @@ function PaymentPlanEditor({
     setPlanType(next);
     if (!isMultiDatePaymentPlan(next)) {
       setRows([]);
+      void onSavePlan?.({ paymentPlanType: next, paymentSchedule: [] });
       return;
     }
     setRows((current) => (current.length ? current : starterRows(next)));

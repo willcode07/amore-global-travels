@@ -108,7 +108,10 @@ test("quality check catches missing traveler-facing quote details", () => {
   assert.equal(result.canPublish, false);
   assert.ok(result.errors.some((item) => item.code === "destinationLabel-required"));
   assert.ok(result.errors.some((item) => item.code === "property-or-flyer-required"));
-  assert.ok(result.errors.some((item) => item.code === "stay-research-required"));
+  assert.equal(
+    result.errors.some((item) => item.code === "stay-research-required"),
+    false,
+  );
 });
 
 test("media-only quotes still need an entered traveler total", () => {
@@ -129,6 +132,7 @@ test("media-only quotes still need an entered traveler total", () => {
 test("quality check rejects unapproved research evidence", () => {
   const result = evaluateQuoteQuality(
     readyQuote({
+      recordResearch: true,
       researchEvidence: [{ ...approvedStayEvidence, status: "unverified" }],
     }),
   );
@@ -254,7 +258,10 @@ test("selecting a quote adds one traveler message for the agent", () => {
 });
 
 test("confirming a trip adds one agent message for the traveler", () => {
-  const confirmed = applyUpdate(requestFixture(), { status: "booking_confirmed" });
+  const confirmed = applyUpdate(requestFixture(), {
+    paymentStatus: "paid",
+    status: "booking_confirmed",
+  });
   const message = confirmed.messages.at(-1);
   assert.equal(message?.sender, "agent");
   assert.match(message?.body ?? "", /trip has been confirmed/i);
@@ -473,4 +480,85 @@ test("assignment notices are durable and marked read per portal identity", () =>
       Reflect.deleteProperty(globalThis, "window");
     }
   }
+});
+
+test("a short quote can publish without research when research is not toggled on", () => {
+  const result = evaluateQuoteQuality(
+    readyQuote({
+      recordResearch: false,
+      researchEvidence: [],
+    }),
+  );
+  assert.equal(result.canPublish, true);
+  assert.equal(result.errors.some((item) => item.code === "stay-research-required"), false);
+});
+
+test("empty quote drafts do not dump flights or TBD flight prices", () => {
+  const request = {
+    ...requestFixture(),
+    intake: {
+      completedAt: "2027-01-01T00:00:00.000Z",
+      firstName: "Ava",
+      lastName: "Traveler",
+      address1: "",
+      address2: "",
+      city: "Atlanta",
+      state: "",
+      zip: "",
+      phone: "4045550101",
+      email: "ava@example.com",
+      preferredContactMethods: [],
+      destination: "Aruba",
+      transportationModes: ["Flight"],
+      departureDate: "2027-06-04",
+      returnDate: "2027-06-09",
+      notes: "",
+      accessibilityNeeded: "",
+      accessibilityNotes: "",
+      adultsCount: "2",
+      adultDobs: [],
+      adultNames: [],
+      childrenCount: "0",
+      childDobs: [],
+      childNames: [],
+      pets: false,
+      supportAnimal: false,
+      preferredAgent: "",
+      tripType: "vacation_package" as const,
+    },
+  };
+  const draft = emptyProposal(request);
+  assert.equal(draft.includeFlights, false);
+  assert.equal(draft.flightTiers.length, 0);
+  assert.equal(draft.amenities.length, 0);
+  assert.equal(draft.enhancements.length, 0);
+});
+
+test("Trip Confirmed is blocked until payment is paid or a plan is saved", () => {
+  assert.throws(
+    () => applyUpdate(requestFixture(), { status: "booking_confirmed" }),
+    /payment plan/i,
+  );
+  const withPlan = applyUpdate(requestFixture(), {
+    paymentPlanType: "pay_in_full",
+    status: "booking_confirmed",
+  });
+  assert.equal(withPlan.status, "booking_confirmed");
+});
+
+test("replacing a published quote keeps the previous version and records who updated", () => {
+  const published = applyUpdate(requestFixture(), { quote: readyQuote() });
+  const revised = applyUpdate(published, {
+    quote: { ...readyQuote(), occasionTitle: "Ava's revised escape" },
+    audit: {
+      agentId: "valerie",
+      agentName: "Valerie Takpor",
+      action: "quote",
+      detail: "Ava's revised escape",
+    },
+  });
+  assert.equal(revised.quotes[0]?.occasionTitle, "Ava's revised escape");
+  assert.equal(revised.quoteHistory?.[0]?.occasionTitle, "Ava's beach escape");
+  assert.equal(revised.lastUpdatedBy, "valerie");
+  assert.equal(revised.auditLog?.[0]?.action, "quote");
 });

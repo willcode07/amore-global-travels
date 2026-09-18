@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { assetPath } from "@/lib/asset";
+import { usablePropertyImage } from "@/lib/quote-media";
 import { recommendedFlight } from "@/lib/quotes";
 import { site } from "@/lib/site";
 import { TravelProposal, TravelRequest } from "@/lib/types";
@@ -49,7 +50,7 @@ export function QuoteDocument({
   request: TravelRequest;
 }) {
   const flight = recommendedFlight(quote);
-  const imageSrc = quote.resortImageUrl || assetPath("/images/caribbean.jpeg");
+  const imageSrc = usablePropertyImage(quote.resortImageUrl);
 
   return (
     <article className="quote-sheet overflow-hidden rounded-[1.6rem] border border-[#e4ddd0] shadow-[0_18px_50px_rgba(23,28,25,0.08)]">
@@ -206,13 +207,19 @@ export function QuoteDocument({
                 {quote.resortAddress}
               </p>
             </div>
-            <div className="relative h-44">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageSrc}
-                alt={quote.resortName || "Resort"}
-                className="h-full w-full object-cover"
-              />
+            <div className="relative h-44 bg-[#f7f3eb]">
+              {imageSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageSrc}
+                  alt={quote.resortName || "Property"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[#5e6762]">
+                  No property photo
+                </div>
+              )}
             </div>
             <div className="p-5">
               <h4 className="font-display text-lg text-[#171c19]">
