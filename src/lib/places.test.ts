@@ -14,6 +14,7 @@ test("departure city stays quiet when several cities still fit", () => {
 
 test("destination autofills a unique Amore match, not a remote gazetteer list", () => {
   assert.equal(bestPlaceMatch("Jam", "destination"), "Jamaica");
+  assert.equal(bestPlaceMatch("Canc", "destination"), "Cancun");
   assert.equal(bestPlaceMatch("Peru", "destination"), null);
 });
 

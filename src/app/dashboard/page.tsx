@@ -142,7 +142,7 @@ function DashboardInner() {
   useEffect(() => {
     if (!pendingDetailsScroll || !showIntakeForm) return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById("trip-details")?.scrollIntoView({
+                    document.getElementById("travel-details")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -485,6 +485,15 @@ function DashboardInner() {
             Every trip in one place — see when your quote is ready, message your
             agent, and keep the history.
           </p>
+          {trips.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => goToTripDetails(selectedId ?? trips[0]?.id)}
+              className="mt-3 text-sm font-semibold text-gold-deep underline-offset-2 hover:underline"
+            >
+              Travel details
+            </button>
+          ) : null}
         </div>
         {trips.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -602,9 +611,6 @@ function DashboardInner() {
                       className="w-full text-left"
                     >
                       <div className="font-display text-xl text-ink">{tripNickname(trip)}</div>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-gold-deep">
-                        {trip.tripRef}
-                      </p>
                       <p className="mt-2 text-sm text-muted">{formatTripWindow(trip.trip)}</p>
                       <p className="mt-1 text-xs text-muted">
                         Requested {formatTimestamp(trip.createdAt)}
@@ -631,13 +637,22 @@ function DashboardInner() {
                       {tripNickname(selected)}
                     </h2>
                     <p className="mt-1 text-sm text-muted">
-                      {selected.tripRef} · Requested {formatTimestamp(selected.createdAt)}
+                      Requested {formatTimestamp(selected.createdAt)}
                     </p>
                     <p className="mt-2 text-sm text-muted">
                       {selected.trip.destination} · {formatTripWindow(selected.trip)}
                     </p>
                   </div>
-                  <StatusBadge status={selectedStatus} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => goToTripDetails(selected.id)}
+                      className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
+                    >
+                      Travel details
+                    </button>
+                    <StatusBadge status={selectedStatus} />
+                  </div>
                 </div>
                 <TravelerCards request={selected} />
                 <div className="mt-8">
@@ -664,7 +679,7 @@ function DashboardInner() {
 
               {showIntakeForm ? (
                 <section
-                  id="trip-details"
+                  id="travel-details"
                   className="scroll-mt-28 rounded-3xl border-2 border-gold bg-surface p-6 md:p-8"
                 >
                   <QuoteIntakeForm
@@ -672,11 +687,11 @@ function DashboardInner() {
                     framed={false}
                     stage={intakeStage}
                     defaults={quoteDefaultsFromRequest(selected)}
-                    title={quoteChosen ? "Booking details" : "Quote preferences"}
+                    title="Travel details"
                     description={
                       quoteChosen
                         ? "We need legal names, dates of birth, and a mailing address to book. Trip preferences can still be updated."
-                        : "Optional extras for this quote. Address, dates of birth, and how you’ll travel are collected after you choose an option."
+                        : "Names, dates, and preferences for this quote. Address and dates of birth can wait until you choose an option."
                     }
                     submitLabel="Save trip details"
                     saving={savingIntake}
@@ -745,24 +760,67 @@ function DashboardInner() {
                   </div>
                 ) : null}
 
+                {selected.quotes.length > 1 ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {selected.quotes.map((quote, index) => {
+                      const chosen = selected.selectedQuoteId === quote.id;
+                      return (
+                        <div
+                          key={`compare-${quote.id}`}
+                          className="rounded-2xl border border-line bg-surface p-4"
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-deep">
+                            Option {index + 1}
+                          </p>
+                          <p className="mt-1 font-display text-xl text-ink">
+                            {quote.occasionTitle}
+                          </p>
+                          <p className="mt-1 text-sm text-muted">
+                            {quote.investmentTotal || "Total on request"}
+                          </p>
+                          <button
+                            type="button"
+                            disabled={chosen || selecting === quote.id}
+                            onClick={() => selectQuote(quote.id)}
+                            className="mt-4 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold disabled:opacity-60"
+                          >
+                            {chosen
+                              ? "Selected"
+                              : selecting === quote.id
+                                ? "Saving…"
+                                : "Choose this option"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
                 {selected.quotes.map((quote) => {
                   const chosen = selected.selectedQuoteId === quote.id;
                   return (
                     <div key={quote.id} className="space-y-4">
                       <QuoteDocument quote={quote} request={selected} />
                       <div className="flex flex-wrap gap-3 no-print">
-                        <button
-                          type="button"
-                          disabled={chosen || selecting === quote.id}
-                          onClick={() => selectQuote(quote.id)}
-                          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
-                        >
-                          {chosen
-                            ? "Selected"
-                            : selecting === quote.id
-                              ? "Saving…"
-                              : "Choose this option"}
-                        </button>
+                        <div>
+                          <button
+                            type="button"
+                            disabled={chosen || selecting === quote.id}
+                            onClick={() => selectQuote(quote.id)}
+                            className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
+                          >
+                            {chosen
+                              ? "Selected"
+                              : selecting === quote.id
+                                ? "Saving…"
+                                : "Choose this option"}
+                          </button>
+                          {chosen ? null : (
+                            <p className="mt-2 max-w-xs text-xs text-muted">
+                              We’ll ask for legal names next. Nothing is charged here.
+                            </p>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => window.print()}
@@ -802,18 +860,25 @@ function DashboardInner() {
                     <div key={option.id} className="space-y-4">
                       <QuoteDocument quote={quote} request={selected} />
                       <div className="flex flex-wrap gap-3 no-print">
-                        <button
-                          type="button"
-                          disabled={chosen || selecting === option.id}
-                          onClick={() => selectOption(option.id)}
-                          className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
-                        >
-                          {chosen
-                            ? "Selected"
-                            : selecting === option.id
-                              ? "Saving…"
-                              : "Choose this option"}
-                        </button>
+                        <div>
+                          <button
+                            type="button"
+                            disabled={chosen || selecting === option.id}
+                            onClick={() => selectOption(option.id)}
+                            className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold disabled:opacity-60"
+                          >
+                            {chosen
+                              ? "Selected"
+                              : selecting === option.id
+                                ? "Saving…"
+                                : "Choose this option"}
+                          </button>
+                          {chosen ? null : (
+                            <p className="mt-2 max-w-xs text-xs text-muted">
+                              We’ll ask for legal names next. Nothing is charged here.
+                            </p>
+                          )}
+                        </div>
                         {option.flyerUrl ? (
                           <a
                             href={option.flyerUrl}
@@ -835,7 +900,6 @@ function DashboardInner() {
                   Request details
                 </summary>
                 <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-                  <Item label="Request ID" value={selected.tripRef} />
                   <Item label="Created" value={formatTimestamp(selected.createdAt)} />
                   <Item
                     label="Trip type"
@@ -894,9 +958,9 @@ function DashboardInner() {
                   >
                     {quoteChosen
                       ? intakeComplete
-                        ? "Update booking details"
+                        ? "Update travel details"
                         : "Add booking details"
-                      : "Add quote preferences"}
+                      : "Travel details"}
                   </button>
                 ) : null}
               </details>

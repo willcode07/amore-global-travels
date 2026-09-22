@@ -164,14 +164,12 @@ test("quality check blocks flight options with placeholder details", () => {
   assert.ok(result.errors.some((item) => item.code === "flight-tier-details-required"));
 });
 
-test("request updates cannot bypass a blocking quote quality check", () => {
-  assert.throws(
-    () =>
-      applyUpdate(requestFixture(), {
-        quote: readyQuote({ investmentTotal: "" }),
-      }),
-    /Quote cannot be published/,
-  );
+test("incomplete quotes can be sent without a quality-check gate", () => {
+  const updated = applyUpdate(requestFixture(), {
+    quote: readyQuote({ investmentTotal: "", resortName: "" }),
+  });
+  assert.equal(updated.quotes.length, 1);
+  assert.equal(updated.quotes[0]?.resortName, "");
 });
 
 test("a checked media quote is stored as a normal traveler quote", () => {
@@ -532,6 +530,10 @@ test("empty quote drafts do not dump flights or TBD flight prices", () => {
   assert.equal(draft.flightTiers.length, 0);
   assert.equal(draft.amenities.length, 0);
   assert.equal(draft.enhancements.length, 0);
+  assert.deepEqual(
+    draft.investmentLines.map((line) => line.label),
+    ["Travel Package", "Flight", "Transportation", "Special Requests"],
+  );
 });
 
 test("Trip Confirmed is blocked until payment is paid or a plan is saved", () => {

@@ -27,7 +27,7 @@ export default function VacationPackagesPage() {
           <p className="mt-4 leading-relaxed text-muted">
             These are starting points — Jamaica under the Caribbean, Ghana and Kenya
             in Africa, London and Greece in Europe. When a destination catches your
-            eye, request a quote and an agent will assemble the trip.
+            eye, ask for pricing and an agent will write one for your dates and your group.
           </p>
         </div>
 
@@ -51,6 +51,9 @@ export default function VacationPackagesPage() {
                 </p>
                 <h3 className="mt-2 font-display text-3xl text-ink">{region.name}</h3>
                 <p className="mt-3 text-muted">{region.summary}</p>
+                <p className="mt-3 text-sm font-medium text-ink">
+                  Curious what it costs? Ask — we’ll price it for your party.
+                </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {region.destinations.map((place) => (
                     <StartTravelButton
@@ -59,7 +62,7 @@ export default function VacationPackagesPage() {
                       tripType="vacation_package"
                       className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold"
                     >
-                      Quote {place}
+                      Ask about {place}
                     </StartTravelButton>
                   ))}
                 </div>
@@ -68,7 +71,7 @@ export default function VacationPackagesPage() {
                   tripType="vacation_package"
                   className="mt-6 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                 >
-                  Request {region.name === "Africa" ? "an" : "a"} {region.name} quote
+                  Ask for {region.name} pricing
                 </StartTravelButton>
               </div>
             </article>

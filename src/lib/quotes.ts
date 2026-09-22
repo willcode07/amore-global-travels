@@ -8,6 +8,7 @@ import {
 } from "@/lib/intake";
 import { createId } from "@/lib/store";
 import {
+  QuoteLine,
   QuoteTier,
   TravelOption,
   TravelProposal,
@@ -45,13 +46,22 @@ function hasMode(modes: string[] | undefined, needle: string) {
   return (modes ?? []).some((mode) => mode.toLowerCase().includes(needle));
 }
 
+export function packagePriceLabel(tripType: TripType) {
+  if (tripType === "cruise") return "Cruise";
+  if (tripType === "all_inclusive") return "All-inclusive";
+  return "Travel Package";
+}
+
+export const PRICE_LINE_FLIGHT = "Flight";
+export const PRICE_LINE_TRANSPORT = "Transportation";
+export const PRICE_LINE_SPECIAL = "Special Requests";
+
 function stayCopy(tripType: TripType) {
   if (tripType === "cruise") {
     return {
       roomLabel: "",
       roomDetails: "",
       amenities: ["Dining included", "Evening entertainment", "Wi-Fi available"],
-      stayLine: "Cruise fare",
     };
   }
   if (tripType === "all_inclusive") {
@@ -59,14 +69,74 @@ function stayCopy(tripType: TripType) {
       roomLabel: "",
       roomDetails: "",
       amenities: ["All-inclusive dining", "Swimming pool", "Free Wi-Fi"],
-      stayLine: "Stay total",
     };
   }
   return {
     roomLabel: "",
     roomDetails: "",
     amenities: ["Free Wi-Fi", "Swimming pool", "Breakfast available"],
-    stayLine: "Stay total",
+  };
+}
+
+function lineAliases(label: string) {
+  const name = label.trim().toLowerCase();
+  if (
+    name === "travel package" ||
+    name === "cruise" ||
+    name === "all-inclusive" ||
+    name === "stay total" ||
+    name === "stay" ||
+    name === "cruise fare"
+  ) {
+    return "package";
+  }
+  if (name === "flight" || name === "flights") return "flight";
+  if (name === "transportation" || name === "transfer" || name === "transfers") {
+    return "transport";
+  }
+  if (name === "special requests" || name === "special request") return "special";
+  return "";
+}
+
+export function orderInvestmentLines(lines: QuoteLine[]): QuoteLine[] {
+  const rank = (label: string) => {
+    const group = lineAliases(label);
+    if (group === "package") return 0;
+    if (group === "flight") return 1;
+    if (group === "transport") return 2;
+    if (group === "special") return 3;
+    return 10;
+  };
+  return [...lines].sort((left, right) => rank(left.label) - rank(right.label));
+}
+
+function findLine(lines: QuoteLine[], group: string) {
+  return lines.find((line) => lineAliases(line.label) === group);
+}
+
+export function normalizeQuotePriceLines(
+  quote: TravelProposal,
+  tripType: TripType,
+): TravelProposal {
+  const packageLabel = packagePriceLabel(tripType);
+  const pkg = findLine(quote.investmentLines, "package");
+  const flight = findLine(quote.investmentLines, "flight");
+  const transport = findLine(quote.investmentLines, "transport");
+  const special = findLine(quote.investmentLines, "special");
+  const extras = quote.investmentLines.filter((line) => !lineAliases(line.label));
+  return {
+    ...quote,
+    investmentLines: [
+      { label: packageLabel, amount: pkg?.amount ?? "", note: pkg?.note },
+      { label: PRICE_LINE_FLIGHT, amount: flight?.amount ?? "", note: flight?.note },
+      {
+        label: PRICE_LINE_TRANSPORT,
+        amount: transport?.amount ?? "",
+        note: transport?.note,
+      },
+      { label: PRICE_LINE_SPECIAL, amount: special?.amount ?? "", note: special?.note },
+      ...extras,
+    ],
   };
 }
 
@@ -127,10 +197,10 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
       ? `Requested trip style: ${request.trip.tripStyle.join(", ")}`
       : "",
     wantsFlight
-      ? "Traveler asked for flights — turn on Include flights only if you are quoting them."
+      ? "Traveler asked for flights. Put the fare on the Flight line."
       : "",
     wantsRental
-      ? "Traveler asked for a rental car — add it under extras if you are quoting it."
+      ? "Traveler asked for a rental car. Put it on the Transportation line."
       : "",
   ].filter(Boolean);
   const notes = [
@@ -155,8 +225,10 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
     resortImageUrl: "",
     amenities: [],
     investmentLines: [
-      { label: copy.stayLine, amount: "" },
-      { label: "Taxes & fees", amount: "" },
+      { label: packagePriceLabel(tripType), amount: "" },
+      { label: PRICE_LINE_FLIGHT, amount: "" },
+      { label: PRICE_LINE_TRANSPORT, amount: "" },
+      { label: PRICE_LINE_SPECIAL, amount: "" },
     ],
     investmentTotal: "",
     cancellation: "",
@@ -188,8 +260,6 @@ export function emptyProposal(request: TravelRequest): TravelProposal {
     notes,
     thankYou: `Thank you for letting Amore Global help plan this trip. We will stay with you from this quote through confirmation.`,
     flyerUrl: "",
-    researchEvidence: [],
-    recordResearch: false,
     quoteKind: "full",
   };
 }
@@ -207,8 +277,6 @@ export function emptyFlyerProposal(request: TravelRequest): TravelProposal {
     flightTiers: [],
     enhancements: [],
     includeProtection: false,
-    recordResearch: false,
-    researchEvidence: [],
     quoteKind: "media",
   };
 }

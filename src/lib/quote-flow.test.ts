@@ -7,6 +7,7 @@ import {
   validateStoredPhone,
 } from "@/lib/phone";
 import { formatRequestParty, toTripIntake, validateQuoteIntake, validateQuotePartyAges } from "@/lib/intake";
+import { emptyProposal } from "@/lib/quotes";
 import { applyCreate, applyMessage, applyUpdate } from "@/lib/request-ops";
 import { travelerFacingStatus } from "@/lib/journey";
 import type { ResearchEvidence } from "@/lib/quote-research";
@@ -72,6 +73,12 @@ test("US phone numbers require a 10-digit national number and keep the country c
   assert.equal(parseStoredPhone("+1 4045550101").countryId, "US");
   assert.equal(parseStoredPhone("8765550101").countryId, "JM");
   assert.equal(validateStoredPhone("+233 241234567"), "");
+  assert.equal(formatInternationalPhone("MX", ""), "+52");
+  assert.equal(parseStoredPhone("+52").countryId, "MX");
+  assert.equal(parseStoredPhone("+52").national, "");
+  assert.equal(formatInternationalPhone("MX", "5512345678"), "+52 5512345678");
+  assert.equal(parseStoredPhone("+52 5512345678").countryId, "MX");
+  assert.equal(parseStoredPhone("+52 5512345678").national, "5512345678");
 });
 
 test("quote requests store adult and child ages without trip details", () => {
@@ -197,6 +204,67 @@ test("quote-stage details do not require address or dates of birth", () => {
   const bookingStage = validateQuoteIntake(data, "vacation_package", "booking");
   assert.ok(bookingStage.errors.address1);
   assert.ok(bookingStage.errors["adultDob-0"]);
+});
+
+test("a home address outside the US accepts a region and postal code", () => {
+  const data = {
+    firstName: "Ama",
+    lastName: "Mensah",
+    address1: "12 Independence Ave",
+    address2: "",
+    city: "Accra",
+    state: "Greater Accra",
+    zip: "GA-184",
+    country: "Ghana",
+    phone: "+233 241234567",
+    email: "ama@example.com",
+    preferredContactMethods: [],
+    destination: "Cancun",
+    transportationModes: ["Flight", "Rental Car"],
+    departureDate: "",
+    returnDate: "",
+    preferences: "",
+    accessibilityNeeded: "No",
+    accessibilityNotes: "",
+    adultsCount: "1",
+    adultDobs: ["1990-01-15"],
+    adultNames: ["Ama Mensah"],
+    childrenCount: "0",
+    childDobs: [],
+    childNames: [],
+    pets: false,
+    supportAnimal: false,
+    preferredAgent: "",
+    datesFlexible: true,
+  };
+  const booking = validateQuoteIntake(data, "all_inclusive", "booking");
+  assert.equal(booking.errors.address1, undefined);
+  assert.equal(booking.errors.city, undefined);
+  assert.equal(booking.errors.state, undefined);
+  assert.equal(booking.errors.zip, undefined);
+
+  const usZip = validateQuoteIntake(
+    { ...data, country: "United States", state: "GA", zip: "GA-184" },
+    "all_inclusive",
+    "booking",
+  );
+  assert.match(usZip.errors.zip ?? "", /5-digit/);
+
+  const request = applyCreate({
+    fullName: "Ama Mensah",
+    email: "ama@example.com",
+    phone: "+233 241234567",
+    destination: "Cancun",
+    departureCity: "Atlanta, GA",
+    travelWindow: "Flexible dates",
+    adultsCount: 1,
+    adultAges: [36],
+    tripType: "all_inclusive",
+  });
+  request.intake = toTripIntake(data, "all_inclusive");
+  const notes = emptyProposal(request).agentNotes ?? [];
+  assert.ok(notes.some((note) => note.includes("Flight line")));
+  assert.ok(notes.some((note) => note.includes("Transportation line")));
 });
 
 test("traveler-facing status follows quotes even if stored status is stale", () => {

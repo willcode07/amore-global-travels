@@ -41,11 +41,18 @@ export function phoneCountryById(id: string) {
 export function formatInternationalPhone(countryId: string, national: string) {
   const country = phoneCountryById(countryId);
   const nationalDigits = digitsOnly(national);
-  if (!nationalDigits) return "";
   if (country.id === "OTHER" || !country.dial) {
+    if (!nationalDigits) return "";
     return `+${nationalDigits}`;
   }
+  if (!nationalDigits) return `+${country.dial}`;
   return `+${country.dial} ${nationalDigits}`;
+}
+
+function countriesByDialLength() {
+  return [...phoneCountries]
+    .filter((country) => country.dial)
+    .sort((left, right) => right.dial.length - left.dial.length);
 }
 
 export function parseStoredPhone(value: string): PhoneParts {
@@ -53,16 +60,20 @@ export function parseStoredPhone(value: string): PhoneParts {
   const digits = digitsOnly(trimmed);
   if (!digits) return { countryId: "US", national: "" };
 
+  const withDial = countriesByDialLength();
+
+  for (const country of withDial) {
+    if (digits !== country.dial) continue;
+    if (country.dial === "1") return { countryId: "US", national: "" };
+    return { countryId: country.id, national: "" };
+  }
+
   if (digits.length === 10) {
     return {
       countryId: NANP_HINTS[digits.slice(0, 3)] ?? "US",
       national: digits,
     };
   }
-
-  const withDial = [...phoneCountries]
-    .filter((country) => country.dial)
-    .sort((left, right) => right.dial.length - left.dial.length);
 
   for (const country of withDial) {
     if (!digits.startsWith(country.dial)) continue;

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { assetPath } from "@/lib/asset";
 import { PlaceSuggestInput } from "@/components/PlaceSuggestInput";
 import { PhoneField } from "@/components/PhoneField";
 import { agents, budgetOptions, tripTypeOptions } from "@/lib/agents";
@@ -62,7 +62,6 @@ export function TravelRequestModal({
   onClose,
   prefill,
 }: TravelRequestModalProps) {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -270,12 +269,13 @@ export function TravelRequestModal({
                   type="button"
                   className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-on-gold"
                   onClick={() => {
-                    onClose();
-                    router.push(
+                    const href = assetPath(
                       resultTripId
                         ? `/dashboard/?trip=${encodeURIComponent(resultTripId)}`
                         : "/dashboard/",
                     );
+                    onClose();
+                    window.location.assign(href);
                   }}
                 >
                   Open my dashboard
@@ -350,13 +350,18 @@ export function TravelRequestModal({
               </div>
 
               <div className={step === 2 ? "grid gap-4" : "hidden"}>
-                <PlaceSuggestInput
-                  kind="destination"
-                  label="Where do you want to go?"
-                  value={destination}
-                  onChange={setDestination}
-                  placeholder="Jamaica, Ghana, a cruise from Miami..."
-                />
+                <div>
+                  <PlaceSuggestInput
+                    kind="destination"
+                    label="Where do you want to go?"
+                    value={destination}
+                    onChange={setDestination}
+                    placeholder="Jamaica, Cancun, Accra, London..."
+                  />
+                  <p className="mt-1 text-xs text-muted">
+                    Country or city abroad. Type it if it is not suggested.
+                  </p>
+                </div>
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium text-ink">What kind of trip?</span>
                   <select
@@ -372,14 +377,24 @@ export function TravelRequestModal({
                   </select>
                 </label>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <PlaceSuggestInput
-                    kind="city"
-                    name="departureCity"
-                    label="Departure city"
-                    value={departureCity}
-                    onChange={setDepartureCity}
-                    placeholder="Atlanta, Miami..."
-                  />
+                  <div>
+                    <PlaceSuggestInput
+                      kind="city"
+                      name="departureCity"
+                      label="Departure city"
+                      value={departureCity}
+                      onChange={setDepartureCity}
+                      placeholder="Atlanta, Miami..."
+                    />
+                    <p className="mt-1 text-xs text-muted">
+                      US city you leave from. Type any city if it is not listed.
+                    </p>
+                    {departureCity.trim() && destination.trim() ? (
+                      <p className="mt-1 text-sm font-medium text-ink">
+                        Leaving {departureCity.trim()} for {destination.trim()}.
+                      </p>
+                    ) : null}
+                  </div>
                   <label className="block text-sm">
                     <span className="mb-1.5 block font-medium text-ink">Budget range</span>
                     <select

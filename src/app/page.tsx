@@ -89,8 +89,8 @@ export default function HomePage() {
               Cruises and vacation packages
             </h2>
             <p className="mt-3 text-muted">
-              Predetermined starting points to spark interest. Request a quote from
-              a tile and we will pre-fill the destination.
+              Pick a place that sounds like your trip. Prices stay off this page —
+              ask and an agent will write one for your dates and your group.
             </p>
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
@@ -113,6 +113,9 @@ export default function HomePage() {
                   </p>
                   <h3 className="mt-1 font-display text-2xl text-ink">{region.name}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted">{region.summary}</p>
+                  <p className="mt-3 text-sm font-medium text-ink">
+                    Curious what it costs? Ask — we’ll price it for your party.
+                  </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {region.destinations.map((place) => (
                       <StartTravelButton
@@ -130,7 +133,7 @@ export default function HomePage() {
                     tripType="vacation_package"
                     className="mt-5 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
                   >
-                    Request a quote
+                    Ask for pricing
                   </StartTravelButton>
                 </div>
               </div>
@@ -156,12 +159,15 @@ export default function HomePage() {
                   </p>
                   <h3 className="mt-1 font-display text-2xl text-ink">{sailing.name}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted">{sailing.summary}</p>
+                  <p className="mt-3 text-sm font-medium text-ink">
+                    Curious what it costs? Ask — we’ll price the sailing for your party.
+                  </p>
                   <StartTravelButton
                     destination={sailing.destination}
                     tripType="cruise"
                     className="mt-5 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-on-gold"
                   >
-                    Request a quote
+                    Ask for pricing
                   </StartTravelButton>
                 </div>
               </div>

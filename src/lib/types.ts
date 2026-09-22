@@ -95,6 +95,8 @@ export type TravelProposal = {
   amenities: string[];
   investmentLines: QuoteLine[];
   investmentTotal: string;
+  /** Package price already includes taxes and fees. */
+  includesTaxesAndFees?: boolean;
   cancellation: string;
   includeFlights: boolean;
   flightRoute: string;
@@ -110,9 +112,9 @@ export type TravelProposal = {
   agentNotes?: string[];
   notes: string[];
   thankYou: string;
-  /** Agent-recorded research; unapproved observations never become published facts. */
+  /** Agent-recorded research from older quotes; no longer collected in the builder. */
   researchEvidence?: ResearchEvidence[];
-  /** When true, Quality Check requires approved stay/cruise research. */
+  /** Kept for stored quotes; the builder no longer gates send on research. */
   recordResearch?: boolean;
   flyerUrl?: string;
   pdfUrl?: string;
@@ -156,6 +158,8 @@ export type TripIntake = {
   city: string;
   state: string;
   zip: string;
+  /** Mailing country. Missing values are treated as the United States. */
+  country?: string;
   phone: string;
   email: string;
   preferredContactMethods: string[];

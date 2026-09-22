@@ -4,6 +4,26 @@ import { TravelRequest, TripIntake, TripType } from "@/lib/types";
 export const CHILD_MAX_AGE = 17;
 export const ADULT_MIN_AGE = 18;
 export const MAX_PARTY_SIZE = 12;
+export const US_MAILING_COUNTRY = "United States";
+
+export const mailingCountries = [
+  "United States",
+  "Canada",
+  "Jamaica",
+  "Bahamas",
+  "Barbados",
+  "Ghana",
+  "Nigeria",
+  "Kenya",
+  "United Kingdom",
+  "Mexico",
+  "Other",
+] as const;
+
+export function isUsMailingCountry(country: string | undefined) {
+  const value = (country ?? "").trim();
+  return !value || value === US_MAILING_COUNTRY;
+}
 
 export type QuoteIntakeFields = {
   firstName: string;
@@ -13,6 +33,7 @@ export type QuoteIntakeFields = {
   city: string;
   state: string;
   zip: string;
+  country?: string;
   phone: string;
   email: string;
   preferredContactMethods: string[];
@@ -354,6 +375,7 @@ export function quoteDefaultsFromRequest(request: TravelRequest): QuoteIntakeFie
     city: intake?.city ?? "",
     state: intake?.state ?? "",
     zip: intake?.zip ?? "",
+    country: intake?.country || US_MAILING_COUNTRY,
     phone: intake?.phone || request.traveler.phone,
     email: intake?.email || request.traveler.email,
     preferredContactMethods: intake?.preferredContactMethods ?? [],
@@ -396,6 +418,7 @@ export function toTripIntake(
     city: data.city,
     state: data.state,
     zip: data.zip,
+    country: data.country?.trim() || US_MAILING_COUNTRY,
     phone: data.phone,
     email: data.email,
     preferredContactMethods: data.preferredContactMethods,
@@ -428,10 +451,13 @@ export function travelerCountFromIntake(intake: Pick<TripIntake, "adultsCount" |
 }
 
 export function formatIntakeAddress(intake: TripIntake) {
-  return [intake.address1, intake.address2, intake.city, intake.state, intake.zip]
+  const lines = [intake.address1, intake.address2, intake.city, intake.state, intake.zip]
     .map((part) => part.trim())
-    .filter(Boolean)
-    .join(", ");
+    .filter(Boolean);
+  if (!isUsMailingCountry(intake.country) && intake.country?.trim()) {
+    lines.push(intake.country.trim());
+  }
+  return lines.join(", ");
 }
 
 export function isIsoDate(value: string) {
@@ -476,12 +502,18 @@ export function validateQuoteIntake(
   if (!data.firstName.trim()) errors.firstName = "Enter a first name.";
   if (!data.lastName.trim()) errors.lastName = "Enter a last name.";
 
+  const usAddress = isUsMailingCountry(data.country);
   if (booking) {
     if (!data.address1.trim()) errors.address1 = "Enter a street address.";
     if (!data.city.trim()) errors.city = "Enter a city.";
-    if (!data.state.trim()) errors.state = "Select a state.";
-    if (!/^\d{5}$/.test(data.zip.trim())) errors.zip = "Enter a 5-digit ZIP code.";
-  } else if (data.zip.trim() && !/^\d{5}$/.test(data.zip.trim())) {
+    if (usAddress) {
+      if (!data.state.trim()) errors.state = "Select a state.";
+      if (!/^\d{5}$/.test(data.zip.trim())) errors.zip = "Enter a 5-digit ZIP code.";
+    } else {
+      if (!data.state.trim()) errors.state = "Enter a region or province.";
+      if (!data.zip.trim()) errors.zip = "Enter a postal code.";
+    }
+  } else if (usAddress && data.zip.trim() && !/^\d{5}$/.test(data.zip.trim())) {
     errors.zip = "Enter a 5-digit ZIP code, or leave it blank until booking.";
   }
 

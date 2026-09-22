@@ -175,9 +175,9 @@ function PaymentPlanEditor({
     <section className="mt-4 rounded-3xl border border-line bg-cream/60 p-4 md:p-5">
       <div>
         <h3 className="font-display text-xl text-ink">Payment plan</h3>
-        <p className="mt-1 text-sm text-muted">
-          Track the plan type and every payment date for installment travelers.
-        </p>
+        {isMultiDatePaymentPlan(planType) ? (
+          <p className="mt-1 text-sm text-muted">Add each payment date, then save.</p>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -309,27 +309,21 @@ function PaymentPlanEditor({
           >
             Add payment date
           </button>
+          <button
+            type="button"
+            disabled={saving || !onSavePlan}
+            onClick={() =>
+              void onSavePlan?.({
+                paymentPlanType: planType,
+                paymentSchedule: rows,
+              })
+            }
+            className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save payment plan"}
+          </button>
         </div>
-      ) : (
-        <p className="mt-3 text-sm text-muted">
-          Multi-date schedules appear for deposit + balance, installments, or
-          custom plans.
-        </p>
-      )}
-
-      <button
-        type="button"
-        disabled={saving || !onSavePlan}
-        onClick={() =>
-          void onSavePlan?.({
-            paymentPlanType: planType,
-            paymentSchedule: rows,
-          })
-        }
-        className="mt-4 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:opacity-60"
-      >
-        {saving ? "Saving..." : "Save payment plan"}
-      </button>
+      ) : null}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { digitsOnly, formatInternationalPhone, parseStoredPhone, phoneCountries } from "@/lib/phone";
 
 type PhoneFieldProps = {
@@ -22,7 +23,24 @@ export function PhoneField({
   autoComplete = "tel-national",
 }: PhoneFieldProps) {
   const parts = parseStoredPhone(value);
-  const country = phoneCountries.find((item) => item.id === parts.countryId) ?? phoneCountries[0];
+  const [countryId, setCountryId] = useState(parts.countryId);
+
+  useEffect(() => {
+    const next = parseStoredPhone(value);
+    if (digitsOnly(next.national).length > 0) {
+      setCountryId(next.countryId);
+      return;
+    }
+    if (!value.trim()) {
+      setCountryId("US");
+      return;
+    }
+    if (next.countryId !== "US") {
+      setCountryId(next.countryId);
+    }
+  }, [value]);
+
+  const country = phoneCountries.find((item) => item.id === countryId) ?? phoneCountries[0];
   const maxDigits = country.nationalDigits.max;
   const tooLong = digitsOnly(parts.national).length > maxDigits;
   const liveError = error || (tooLong ? `Use up to ${maxDigits} digits.` : "");
@@ -35,10 +53,12 @@ export function PhoneField({
       </span>
       <div className="grid grid-cols-[minmax(8.5rem,38%)_1fr] gap-2">
         <select
-          value={parts.countryId}
+          value={countryId}
           aria-label="Country code"
           onChange={(event) => {
-            onChange(formatInternationalPhone(event.target.value, parts.national));
+            const nextCountry = event.target.value;
+            setCountryId(nextCountry);
+            onChange(formatInternationalPhone(nextCountry, parts.national));
           }}
           className={`w-full rounded-xl border bg-surface px-3 py-3 text-sm outline-none ring-gold focus:ring-2 ${
             liveError ? "border-red-500" : "border-line"
@@ -55,7 +75,7 @@ export function PhoneField({
           inputMode="tel"
           value={parts.national}
           onChange={(event) => {
-            onChange(formatInternationalPhone(parts.countryId, event.target.value));
+            onChange(formatInternationalPhone(countryId, event.target.value));
           }}
           placeholder={country.dial === "1" ? "4045550101" : "Phone number"}
           autoComplete={autoComplete}

@@ -9,7 +9,17 @@ import {
   transportationOptions,
   tripTypeOptions,
 } from "@/lib/agents";
-import { QuoteIntakeFields, IntakeStage, resizeDobs, resizeList, toInputDate, validateQuoteIntake } from "@/lib/intake";
+import {
+  QuoteIntakeFields,
+  IntakeStage,
+  US_MAILING_COUNTRY,
+  isUsMailingCountry,
+  mailingCountries,
+  resizeDobs,
+  resizeList,
+  toInputDate,
+  validateQuoteIntake,
+} from "@/lib/intake";
 import { lookupUsZip } from "@/lib/places";
 import { site } from "@/lib/site";
 import { TripType } from "@/lib/types";
@@ -192,6 +202,8 @@ export function QuoteIntakeForm({
   const [city, setCity] = useState(defaults.city ?? "");
   const [state, setState] = useState(defaults.state ?? "");
   const [zip, setZip] = useState(defaults.zip ?? "");
+  const [country, setCountry] = useState(defaults.country || US_MAILING_COUNTRY);
+  const usAddress = isUsMailingCountry(country);
   const [destination, setDestination] = useState(defaults.destination ?? "");
   const [departureDate, setDepartureDate] = useState(toInputDate(defaults.departureDate ?? ""));
   const [returnDate, setReturnDate] = useState(toInputDate(defaults.returnDate ?? ""));
@@ -240,6 +252,7 @@ export function QuoteIntakeForm({
       city: city.trim(),
       state: state.trim(),
       zip: zip.trim(),
+      country,
       phone: phone.trim(),
       email: email.trim(),
       preferredContactMethods: contactMethods,
@@ -340,16 +353,34 @@ export function QuoteIntakeForm({
         placeholder="Paris anniversary, Jamaica with Mom…"
       />
 
+      {booking ? (
       <div className="rounded-2xl border border-line bg-cream/60 p-4">
-        <p className="text-sm font-medium text-ink">
-          {booking ? "Booking details" : "Needed later to book"}
-        </p>
+        <p className="text-sm font-medium text-ink">Booking details</p>
         <p className="mt-1 text-xs text-muted">
-          {booking
-            ? "Vendors need a mailing address and dates of birth to issue tickets. We only ask once you choose an option."
-            : "Home address, dates of birth, and how you’ll get there are for booking — not for a quote. Save them later, or add them now if you already have them."}
+          Vendors need a mailing address and dates of birth to issue tickets.
         </p>
         <div className="mt-4 grid gap-4">
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium text-ink">Country *</span>
+        <select
+          name="country"
+          value={country}
+          onChange={(event) => {
+            const next = event.target.value;
+            setCountry(next);
+            if (isUsMailingCountry(next) && state && !usStates.includes(state as (typeof usStates)[number])) {
+              setState("");
+            }
+          }}
+          className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none ring-gold focus:ring-2"
+        >
+          {mailingCountries.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      </label>
       <Field
         label="Address 1"
         name="address1"
@@ -378,10 +409,9 @@ export function QuoteIntakeForm({
           required={booking}
           error={fieldErrors.city}
         />
+        {usAddress ? (
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium text-ink">
-            State{booking ? " *" : ""}
-          </span>
+          <span className="mb-1.5 block font-medium text-ink">State *</span>
           <select
             name="state"
             value={state}
@@ -402,18 +432,29 @@ export function QuoteIntakeForm({
             <span className="mt-1 block text-xs text-red-700">{fieldErrors.state}</span>
           ) : null}
         </label>
+        ) : (
+          <Field
+            label="Region / province"
+            name="state"
+            value={state}
+            onChange={setState}
+            required={booking}
+            error={fieldErrors.state}
+          />
+        )}
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium text-ink">
-            ZIP code{booking ? " *" : ""}
+            {usAddress ? "ZIP code *" : "Postal code *"}
           </span>
           <input
             name="zip"
             value={zip}
             required={booking}
             autoComplete="postal-code"
-            inputMode="numeric"
+            inputMode={usAddress ? "numeric" : "text"}
             onChange={(event) => setZip(event.target.value)}
             onBlur={async () => {
+              if (!usAddress) return;
               const match = await lookupUsZip(zip);
               if (!match) return;
               setZip(match.zip);
@@ -430,10 +471,17 @@ export function QuoteIntakeForm({
         </label>
       </div>
       <p className="-mt-1 text-xs text-muted">
-        ZIP fills city and state when it matches a US code.
+        {usAddress
+          ? "ZIP fills city and state when it matches a US code."
+          : "Use the region and postal code from the traveler’s home country."}
       </p>
         </div>
       </div>
+      ) : (
+        <p className="text-sm text-muted">
+          Address, dates of birth, and how you’ll travel wait until you choose an option.
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <PhoneField
           label="Phone number"
@@ -483,6 +531,9 @@ export function QuoteIntakeForm({
         {fieldErrors.destination ? (
           <p className="mt-1 text-xs text-red-700">{fieldErrors.destination}</p>
         ) : null}
+        <p className="mt-1 text-xs text-muted">
+          Country or city abroad, such as Cancun, Accra, or London.
+        </p>
       </div>
 
       <fieldset>
@@ -502,14 +553,13 @@ export function QuoteIntakeForm({
         ) : null}
       </fieldset>
 
+      {booking ? (
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink">
-          Mode of transportation (all that apply){booking ? " *" : ""}
+          Mode of transportation (all that apply) *
         </legend>
         <p className="mb-2 text-xs text-muted">
-          {booking
-            ? "How this party will get there — needed to book flights, transfers, or a cruise."
-            : "Optional until booking. Skip this if you only need a quote."}
+          How this party will get there — needed to book flights, transfers, or a cruise.
         </p>
         <div className="flex flex-wrap gap-2">
           {transportationOptions.map((mode) => (
@@ -528,6 +578,7 @@ export function QuoteIntakeForm({
           <p className="mt-1 text-xs text-red-700">{fieldErrors.transportationModes}</p>
         ) : null}
       </fieldset>
+      ) : null}
 
       <div>
         <label className="mb-3 flex items-center gap-2 text-sm text-ink">
@@ -581,14 +632,13 @@ export function QuoteIntakeForm({
         />
       </label>
 
+      {booking ? (
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink">
-          Disability accessibility needed?{booking ? " *" : ""}
+          Disability accessibility needed? *
         </legend>
         <p className="mb-2 text-xs text-muted">
-          {booking
-            ? "Vendors need this before they can confirm rooms or cabins."
-            : "Optional until booking."}
+          Vendors need this before they can confirm rooms or cabins.
         </p>
         <div className="flex flex-wrap gap-2">
           {["Yes", "No"].map((value) => (
@@ -604,7 +654,8 @@ export function QuoteIntakeForm({
           <p className="mt-1 text-xs text-red-700">{fieldErrors.accessibilityNeeded}</p>
         ) : null}
       </fieldset>
-      {accessibilityNeeded === "Yes" && (
+      ) : null}
+      {booking && accessibilityNeeded === "Yes" && (
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium text-ink">
             Brief explanation (optional)
@@ -690,11 +741,12 @@ export function QuoteIntakeForm({
                   }}
                   placeholder={index === 0 ? `${firstName} ${lastName}`.trim() : "First and last name"}
                 />
+                {booking ? (
                 <DateField
-                  label={`DOB Adult ${index + 1}${booking ? "" : " (optional)"}`}
+                  label={`DOB Adult ${index + 1}`}
                   value={dob}
                   max={maxDob}
-                  required={booking}
+                  required
                   error={fieldErrors[`adultDob-${index}`]}
                   onChange={(next) => {
                     setAdultDobs((current) =>
@@ -702,6 +754,7 @@ export function QuoteIntakeForm({
                     );
                   }}
                 />
+                ) : null}
               </div>
             ))}
           </div>
@@ -721,11 +774,12 @@ export function QuoteIntakeForm({
                   }}
                   placeholder="First and last name"
                 />
+                {booking ? (
                 <DateField
-                  label={`DOB Child ${index + 1}${booking ? "" : " (optional)"}`}
+                  label={`DOB Child ${index + 1}`}
                   value={dob}
                   max={maxDob}
-                  required={booking}
+                  required
                   error={fieldErrors[`childDob-${index}`]}
                   onChange={(next) => {
                     setChildDobs((current) =>
@@ -733,10 +787,12 @@ export function QuoteIntakeForm({
                     );
                   }}
                 />
+                ) : null}
               </div>
             ))}
           </div>
         ) : null}
+        {booking ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <Chip label="Pets" active={pets} onClick={() => setPets((value) => !value)} />
           <Chip
@@ -745,6 +801,7 @@ export function QuoteIntakeForm({
             onClick={() => setSupportAnimal((value) => !value)}
           />
         </div>
+        ) : null}
       </div>
 
       <label className="block text-sm">

@@ -5,7 +5,6 @@ import {
 } from "@/lib/agents";
 import { createId, createTripRef } from "@/lib/ids";
 import { formatTravelWindow, parseAgeList, travelerCountFromIntake, tripPartyCounts } from "@/lib/intake";
-import { evaluateQuoteQuality } from "@/lib/quote-quality";
 import { paymentReadyToConfirm } from "@/lib/agent-desk";
 import {
   MessageSender,
@@ -378,14 +377,6 @@ export function applyUpdate(
   }
 
   if (body.quote) {
-    const quality = evaluateQuoteQuality(body.quote);
-    if (!quality.canPublish) {
-      throw new Error(
-        `Quote cannot be published until ${quality.errors.length} Quality Check issue${
-          quality.errors.length === 1 ? "" : "s"
-        } ${quality.errors.length === 1 ? "is" : "are"} resolved.`,
-      );
-    }
     const quote = { ...body.quote, id: body.quote.id || createId("quote") };
     const existingIndex = updated.quotes.findIndex((item) => item.id === quote.id);
     if (existingIndex >= 0) {

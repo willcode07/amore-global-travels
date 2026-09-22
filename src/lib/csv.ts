@@ -3,6 +3,7 @@ import {
   statusLabels,
   tripTypeLabels,
 } from "@/lib/agents";
+import { formatIntakeAddress, formatRequestParty } from "@/lib/intake";
 import {
   paymentPlanTypeLabels,
   scheduleSummary,
@@ -145,6 +146,33 @@ export function confirmedTripsToCsv(requests: TravelRequest[]) {
     ];
   });
   return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+/** One trip, ready to retype into ClientEase. Includes drafts that are not confirmed yet. */
+export function clienteaseFileCsv(request: TravelRequest) {
+  const quote =
+    request.quotes.find((item) => item.id === request.selectedQuoteId) ??
+    request.quotes[0];
+  const rows: [string, string][] = [
+    ["Trip reference", request.tripRef],
+    ["ClientEase ref", request.clienteaseRef ?? ""],
+    ["Traveler", request.traveler.fullName],
+    ["Email", request.traveler.email],
+    ["Phone", request.traveler.phone],
+    ["Mailing address", request.intake ? formatIntakeAddress(request.intake) : ""],
+    ["Departure city", request.trip.departureCity],
+    ["Destination", request.trip.destination],
+    ["Travel window", request.trip.travelWindow],
+    ["Party", formatRequestParty(request)],
+    ["Trip type", tripTypeLabels[request.trip.tripType] ?? request.trip.tripType],
+    ["Selected quote", quote?.occasionTitle ?? ""],
+    ["Quote total", quote?.investmentTotal ?? ""],
+    ["Taxes and fees included", quote?.includesTaxesAndFees ? "Yes" : ""],
+    ["Payment plan", paymentPlanCell(request)],
+    ["Payment schedule", paymentDatesCell(request)],
+    ["Notes", request.intake?.notes || request.trip.preferences],
+  ];
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
 export function downloadCsv(filename: string, csv: string) {

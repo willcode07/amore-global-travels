@@ -45,9 +45,8 @@ export default function CruisesPage() {
             Tell us the sailing. We build the quote.
           </h2>
           <p className="mt-4 leading-relaxed text-muted">
-            No self-serve checkout, no mystery yacht picker. Request a cruise quote
-            and an agent will come back with options, protection, and next steps in
-            your dashboard.
+            No sticker prices and no checkout. Tell us the sailing you have in mind
+            and an agent will come back with a price built for your dates and your group.
           </p>
         </div>
 
@@ -72,7 +71,7 @@ export default function CruisesPage() {
             destination="Cruise"
             className="mt-8 inline-flex rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold"
           >
-            Request a cruise quote
+            Ask for cruise pricing
           </StartTravelButton>
         </div>
       </section>

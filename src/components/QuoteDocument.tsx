@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { assetPath } from "@/lib/asset";
 import { usablePropertyImage } from "@/lib/quote-media";
-import { recommendedFlight } from "@/lib/quotes";
+import { orderInvestmentLines, recommendedFlight } from "@/lib/quotes";
 import { site } from "@/lib/site";
 import { TravelProposal, TravelRequest } from "@/lib/types";
 
@@ -126,26 +126,30 @@ export function QuoteDocument({
         <div className="space-y-5">
           <section className="rounded-3xl bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5600]">
-              Vacation investment
+              Trip cost
             </p>
+            <p className="mt-2 text-sm text-[#5e6762]">Here’s what this total includes.</p>
             <div className="mt-4 space-y-2 text-sm">
-              {quote.investmentLines
-                .filter((line) => line.label.trim())
+              {orderInvestmentLines(quote.investmentLines)
+                .filter((line) => line.label.trim() && (line.amount.trim() || line.note?.trim()))
                 .map((line) => (
-                  <div key={line.label} className="flex items-start justify-between gap-4">
+                  <div key={line.label} className="flex items-start justify-between gap-4 border-b border-[#efe8dc] pb-2">
                     <div>
                       <div className="text-[#171c19]">{line.label}</div>
                       {line.note ? (
                         <div className="text-xs text-[#5e6762]">{line.note}</div>
                       ) : null}
                     </div>
-                    <div className="font-medium text-[#171c19]">{line.amount || "—"}</div>
+                    <div className="font-medium text-[#171c19]">{line.amount}</div>
                   </div>
                 ))}
             </div>
+            {quote.includesTaxesAndFees ? (
+              <p className="mt-3 text-xs text-[#5e6762]">Taxes and fees are included.</p>
+            ) : null}
             <div className="mt-4 rounded-2xl bg-[#171c19] px-4 py-3 text-white">
               <div className="text-[10px] uppercase tracking-[0.16em] text-[#f0c36a]">
-                Total stay cost
+                Trip total
               </div>
               <div className="font-display text-3xl">
                 {quote.investmentTotal || "Quoted on request"}
@@ -307,7 +311,7 @@ export function QuoteDocument({
           {quote.thankYou}
         </p>
         <p className="mt-2 text-xs text-[#f0c36a]">
-          {site.phone}  ·  {site.email}  ·  Trip {request.tripRef}
+          {site.phone}  ·  {site.email}
         </p>
       </div>
     </article>

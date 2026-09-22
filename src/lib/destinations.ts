@@ -32,6 +32,14 @@ export const vacationRegions = [
 
 export const featuredDestinations = [
   ...new Set(vacationRegions.flatMap((region) => [region.name, ...region.destinations])),
+  "Cancun",
+  "Punta Cana",
+  "Montego Bay",
+  "Nassau",
+  "Accra",
+  "Nairobi",
+  "Athens",
+  "Istanbul",
   "Mediterranean",
   "Alaska",
   "Hawaii",

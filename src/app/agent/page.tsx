@@ -32,7 +32,7 @@ import {
   paymentPlanTypeLabels,
   scheduleSummary,
 } from "@/lib/payments";
-import { downloadCsv, requestsToCsv } from "@/lib/csv";
+import { clienteaseFileCsv, downloadCsv, requestsToCsv } from "@/lib/csv";
 import { isApiBackend } from "@/lib/data/mode";
 import { resetApiAuthCache } from "@/lib/data/session-cache";
 import {
@@ -59,7 +59,6 @@ import {
   readNotifications,
   recordAgentAssignment,
 } from "@/lib/notifications";
-import { evaluateQuoteQuality } from "@/lib/quote-quality";
 import { listRequests, updateRequest } from "@/lib/requests";
 import { emailsMatch, phonesMatch } from "@/lib/session";
 import { logoutApiSession, postJson } from "@/lib/uploads";
@@ -506,15 +505,6 @@ export default function AgentPage() {
 
   async function publishQuote(quote: TravelProposal) {
     if (!selected || !requireOwnFile()) return;
-    const quality = evaluateQuoteQuality(quote);
-    if (!quality.canPublish) {
-      setError(
-        `Quote has ${quality.errors.length} blocking Quality Check issue${
-          quality.errors.length === 1 ? "" : "s"
-        }. Resolve them before sending.`,
-      );
-      return;
-    }
     setSaving(true);
     try {
       const updated = await updateRequest(selected.id, {
@@ -1020,8 +1010,17 @@ export default function AgentPage() {
                   </dd>
                 </div>
               </dl>
+              <div className="mt-6">
+                <h3 className="font-display text-xl text-ink">
+                  Quote here, Book in ClientEase
+                </h3>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+                  <li>Finish the quote in Amore and let the traveler choose an option.</li>
+                  <li>Enter that booking in ClientEase. Download this file if you want the names and totals beside you.</li>
+                  <li>Paste the ClientEase booking ref here after it exists in ClientEase.</li>
+                </ol>
               <form
-                className="mt-5 flex flex-wrap items-end gap-3"
+                className="mt-4 flex flex-wrap items-end gap-3"
                 onSubmit={async (event) => {
                   event.preventDefault();
                   if (!selected || !requireOwnFile()) return;
@@ -1044,12 +1043,12 @@ export default function AgentPage() {
               >
                 <label className="block min-w-[220px] flex-1 text-sm">
                   <span className="mb-1.5 block font-medium text-ink">
-                    ClientEase booking ref
+                    Booking ref
                   </span>
                   <input
                     value={clienteaseRef}
                     onChange={(event) => setClienteaseRef(event.target.value)}
-                    placeholder="Paste after you enter the booking in ClientEase"
+                    placeholder="Paste the ClientEase booking ref"
                     className="w-full rounded-xl border border-line px-4 py-2.5 outline-none ring-gold focus:ring-2"
                   />
                 </label>
@@ -1060,7 +1059,27 @@ export default function AgentPage() {
                 >
                   Save ref
                 </button>
+                <button
+                  type="button"
+                  disabled={!selected}
+                  onClick={() => {
+                    if (!selected) return;
+                    downloadCsv(
+                      `clientease-${selected.tripRef}.csv`,
+                      clienteaseFileCsv(selected),
+                    );
+                  }}
+                  className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold"
+                >
+                  Download this file for ClientEase
+                </button>
               </form>
+              {selected.clienteaseRef ? (
+                <p className="mt-2 text-sm text-ink">
+                  Saved ref: {selected.clienteaseRef}
+                </p>
+              ) : null}
+              </div>
               {selected.trip.preferences || selected.intake?.notes ? (
                 <div className="mt-4 rounded-2xl bg-cream px-4 py-3 text-sm">
                   <p className="font-medium text-ink">Notes</p>
@@ -1111,8 +1130,9 @@ export default function AgentPage() {
                 <div>
                   <h3 className="font-display text-2xl text-ink">Generate a quote</h3>
                   <p className="mt-1 text-sm text-muted">
-                    Opens a short draft: property, room, stay total, taxes/fees, cancellation.
-                    Fill starred fields — Send turns on when Quality Check is clear.
+                    {selected.quotes.length
+                      ? "Add another quote sends a second option and leaves the ones already sent in place. Revise replaces that one quote."
+                      : "Price the package, flights, transportation, and special requests. Preview on the right, then send."}
                   </p>
                 </div>
                 <button
@@ -1125,9 +1145,26 @@ export default function AgentPage() {
                   }}
                   className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-on-gold disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {selected.quotes.length ? "Add another quote" : "Generate a quote"}
+                  {selected.quotes.length ? "Add another option" : "Generate a quote"}
                 </button>
               </div>
+
+              {selected.quotes.length > 1 ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {selected.quotes.map((quote, index) => (
+                    <div key={`compare-${quote.id}`} className="rounded-2xl border border-line px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-deep">
+                        Option {index + 1}
+                      </p>
+                      <p className="mt-1 font-medium text-ink">{quote.occasionTitle}</p>
+                      <p className="text-sm text-muted">
+                        {quote.investmentTotal || "Total not entered"}
+                        {selected.selectedQuoteId === quote.id ? " · Traveler selected this option" : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               {selected.quotes.map((quote) => (
                 <div key={quote.id} className="mt-6">
