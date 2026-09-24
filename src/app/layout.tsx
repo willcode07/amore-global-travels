@@ -3,7 +3,6 @@ import { Figtree, Fraunces } from "next/font/google";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { RequestModalProvider } from "@/components/RequestModalProvider";
-import { assetPath } from "@/lib/asset";
 import { site } from "@/lib/site";
 import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
@@ -34,10 +33,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href={assetPath("/favicon.ico")} sizes="any" />
-        <link rel="icon" href={assetPath("/favicon-32.png")} type="image/png" sizes="32x32" />
-        <link rel="icon" href={assetPath("/favicon.svg")} type="image/svg+xml" />
-        <link rel="apple-touch-icon" href={assetPath("/apple-touch-icon.png")} />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className={`${figtree.variable} ${fraunces.variable} antialiased`}>

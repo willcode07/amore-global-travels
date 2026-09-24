@@ -29,18 +29,18 @@ export default function HomePage() {
           className="absolute inset-0 bg-cover bg-center amore-hero-zoom"
           style={{ backgroundImage: `url(${assetPath("/images/hero.jpeg")})` }}
         />
-        <div className="absolute inset-0 bg-background/88" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/40 to-background" />
         <div className="relative mx-auto flex min-h-[92vh] max-w-6xl flex-col justify-end px-5 pb-20 pt-32 md:justify-center md:px-8 md:pb-28">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-gold-deep amore-fade-up">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-gold amore-fade-up">
             Agent-led travel
           </p>
-          <h1 className="max-w-3xl font-display text-5xl leading-[0.98] text-ink md:text-7xl amore-fade-up-delay">
-            Coming Soon..
+          <h1 className="max-w-3xl font-display text-5xl leading-[0.98] text-white md:text-7xl amore-fade-up-delay">
+            {site.name}
           </h1>
-          <p className="mt-4 max-w-xl font-display text-2xl text-ink md:text-3xl amore-fade-up-delay">
+          <p className="mt-4 max-w-xl font-display text-2xl text-white/92 md:text-3xl amore-fade-up-delay">
             Cruises and vacations, planned with care
           </p>
-          <p className="mt-4 max-w-lg text-base text-muted md:text-lg amore-fade-up-delay-2">
+          <p className="mt-4 max-w-lg text-base text-white/80 md:text-lg amore-fade-up-delay-2">
             {site.tagline}
           </p>
           <div className="mt-8 flex flex-wrap gap-3 amore-fade-up-delay-2">
@@ -49,7 +49,7 @@ export default function HomePage() {
             </StartTravelButton>
             <Link
               href="/dashboard"
-              className="rounded-full border border-line bg-surface px-6 py-3 text-sm font-semibold text-ink transition hover:bg-cream"
+              className="rounded-full border border-white/35 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
             >
               View my trips
             </Link>
@@ -270,12 +270,12 @@ export default function HomePage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${assetPath("/images/travel-2.jpg")})` }}
         />
-        <div className="absolute inset-0 bg-background/90" />
+        <div className="absolute inset-0 bg-black/72" />
         <div className="relative mx-auto max-w-3xl px-5 py-24 text-center md:px-8 md:py-28">
-          <h2 className="font-display text-3xl text-ink md:text-5xl">
+          <h2 className="font-display text-3xl text-white md:text-5xl">
             Ready when you are
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-muted">
+          <p className="mx-auto mt-4 max-w-xl text-white/80">
             Share a destination and a window. We will come back with a quote you
             can sit with — not a checkout page.
           </p>
