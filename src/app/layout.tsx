@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
-import { Footer } from "@/components/Footer";
-import { Header } from "@/components/Header";
 import { RequestModalProvider } from "@/components/RequestModalProvider";
+import { SiteFrame } from "@/components/SiteFrame";
 import { site } from "@/lib/site";
 import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
@@ -37,9 +36,7 @@ export default function RootLayout({
       </head>
       <body className={`${figtree.variable} ${fraunces.variable} antialiased`}>
         <RequestModalProvider>
-          <Header />
-          <main>{children}</main>
-          <Footer />
+          <SiteFrame>{children}</SiteFrame>
         </RequestModalProvider>
       </body>
     </html>

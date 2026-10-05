@@ -1,0 +1,11 @@
+# Force HTTPS when the SSL certificate is active on this domain.
+# Safe to leave in place before the padlock is ready.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# Serve the coming-soon page for unknown paths.
+DirectoryIndex index.html
+ErrorDocument 404 /index.html
