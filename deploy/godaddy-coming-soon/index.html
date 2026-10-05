@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coming Soon.. | Amore Global</title>
+    <meta
+      name="description"
+      content="A new Amore Global site is on the way. Call or email and an agent will still plan the trip."
+    />
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600&family=Fraunces:opsz,wght@9..144,560&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --gold: #e8920c;
+        --ink: #171c19;
+        --cream: #fffaf4;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: Figtree, sans-serif;
+        color: var(--ink);
+        background: #f4efe6;
+      }
+      .page {
+        position: relative;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: 4rem 1.5rem;
+      }
+      .page::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: url("images/hero.jpeg") center / cover no-repeat;
+        transform: scale(1.04);
+      }
+      .content {
+        position: relative;
+        width: min(40rem, 100%);
+        background: rgba(255, 250, 244, 0.94);
+        border-radius: 1.5rem;
+        padding: 2rem 1.75rem 1.75rem;
+        box-shadow: 0 16px 40px rgba(23, 28, 25, 0.16);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+      .brand img { width: 56px; height: 56px; object-fit: contain; }
+      .brand strong {
+        display: block;
+        font-family: Fraunces, serif;
+        font-size: 1.5rem;
+        font-weight: 560;
+        line-height: 1;
+      }
+      .brand span {
+        display: block;
+        margin-top: 0.3rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      h1 {
+        margin: 0;
+        max-width: 16ch;
+        font-family: Fraunces, serif;
+        font-size: clamp(2.6rem, 6vw, 3.6rem);
+        font-weight: 560;
+        line-height: 0.98;
+        color: var(--ink);
+      }
+      p.lead {
+        margin: 1.25rem 0 0;
+        max-width: 34rem;
+        font-size: 1.125rem;
+        line-height: 1.55;
+        color: rgba(23, 28, 25, 0.78);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 2rem;
+      }
+      a.button {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.75rem 1.4rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a.gold { background: var(--gold); color: var(--ink); }
+      a.ghost {
+        border: 1px solid rgba(23, 28, 25, 0.28);
+        background: var(--cream);
+        color: var(--ink);
+      }
+      .place {
+        margin: 2.5rem 0 0;
+        font-size: 0.9rem;
+        color: rgba(23, 28, 25, 0.68);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="content">
+        <div class="brand">
+          <img src="images/logo-alt.png" alt="" />
+          <div>
+            <strong>Amore Global</strong>
+            <span>Travels</span>
+          </div>
+        </div>
+        <h1>Coming Soon..</h1>
+        <p class="lead">
+          A new site is on the way. Until it opens, call or email and an agent
+          will plan the trip with you.
+        </p>
+        <div class="actions">
+          <a class="button gold" href="tel:4045007045">404-500-7045</a>
+          <a class="button ghost" href="mailto:info@amoreglobaltravels.com">info@amoreglobaltravels.com</a>
+        </div>
+        <p class="place">Fayetteville, GA 30214</p>
+      </div>
+    </main>
+  </body>
+</html>
