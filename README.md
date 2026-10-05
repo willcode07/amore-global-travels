@@ -49,6 +49,18 @@ Manual rebuild: **Actions → Deploy to GitHub Pages → Run workflow**.
 
 Repo Settings → Pages should use **GitHub Actions** as the source.
 
+## Deploy (GoDaddy Node.js Hosting)
+
+Connect this repo in GoDaddy Node.js Hosting. Use **Node 20**, leave `GITHUB_PAGES` unset, and set:
+
+| Setting | Value |
+| --- | --- |
+| Install | `npm install` |
+| Build | `npm run build` |
+| Start | `npm start` |
+
+`npm start` runs `server.js`, which serves the static export from `out/` on `process.env.PORT` (including trailing-slash routes like `/dashboard/`). Build tools (TypeScript, Tailwind) are in `dependencies` so production installs still compile. Set `NEXT_PUBLIC_SITE_URL` to your live domain in the GoDaddy env panel.
+
 ## Notes
 
 - Request data lives in the browser (`localStorage`), so traveler + agent flows need the same browser/device.
