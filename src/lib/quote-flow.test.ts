@@ -67,17 +67,19 @@ function publishableQuote(): TravelProposal {
 }
 
 test("US phone numbers require a 10-digit national number and keep the country code", () => {
-  assert.equal(validatePhoneParts("US", "4045550101"), "");
-  assert.ok(validatePhoneParts("US", "404555"));
-  assert.equal(formatInternationalPhone("US", "404-555-0101"), "+1 4045550101");
-  assert.equal(parseStoredPhone("+1 4045550101").countryId, "US");
-  assert.equal(parseStoredPhone("8765550101").countryId, "JM");
+  assert.equal(validatePhoneParts("1", "4045550101"), "");
+  assert.ok(validatePhoneParts("1", "404555"));
+  assert.equal(formatInternationalPhone("1", "404-555-0101"), "+1 4045550101");
+  assert.equal(parseStoredPhone("+1 4045550101").dial, "1");
+  assert.equal(parseStoredPhone("+1 4045550101").national, "4045550101");
+  assert.equal(parseStoredPhone("4045550101").dial, "1");
+  assert.equal(parseStoredPhone("4045550101").national, "4045550101");
   assert.equal(validateStoredPhone("+233 241234567"), "");
-  assert.equal(formatInternationalPhone("MX", ""), "+52");
-  assert.equal(parseStoredPhone("+52").countryId, "MX");
+  assert.equal(formatInternationalPhone("52", ""), "+52");
+  assert.equal(parseStoredPhone("+52").dial, "52");
   assert.equal(parseStoredPhone("+52").national, "");
-  assert.equal(formatInternationalPhone("MX", "5512345678"), "+52 5512345678");
-  assert.equal(parseStoredPhone("+52 5512345678").countryId, "MX");
+  assert.equal(formatInternationalPhone("52", "5512345678"), "+52 5512345678");
+  assert.equal(parseStoredPhone("+52 5512345678").dial, "52");
   assert.equal(parseStoredPhone("+52 5512345678").national, "5512345678");
 });
 

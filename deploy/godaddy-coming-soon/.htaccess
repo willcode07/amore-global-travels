@@ -1,11 +1,13 @@
 # Force HTTPS when the SSL certificate is active on this domain.
-# Safe to leave in place before the padlock is ready.
+# GoDaddy Managed WP (Cloudflare gateway) may ignore DirectoryIndex and
+# some RewriteCond forms — see .htaccess.log on the host. The MU plugin
+# wp-content/mu-plugins/amore-coming-soon.php is the reliable hold.
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteCond %{HTTPS} !=on
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-</IfModule>
+  RewriteBase /
 
-# Serve the coming-soon page for unknown paths.
-DirectoryIndex index.html
-ErrorDocument 404 /index.html
+  # Root and WordPress front controller -> hold page.
+  RewriteRule ^$ /index.html [L]
+  RewriteRule ^index\.php$ /index.html [L]
+</IfModule>

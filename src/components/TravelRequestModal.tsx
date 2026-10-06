@@ -336,7 +336,7 @@ export function TravelRequestModal({
                     value={phone}
                     onChange={setPhone}
                     required
-                    hint="Country code plus number — used with email to open your dashboard."
+                    hint="US number — used with email to open your dashboard."
                   />
                 </div>
                 {error && step === 1 ? <p className="text-sm text-red-700">{error}</p> : null}
