@@ -1,124 +1,94 @@
-export type PhoneCountry = {
-  id: string;
-  label: string;
-  dial: string;
-  nationalDigits: { min: number; max: number };
-};
-
-export const phoneCountries: PhoneCountry[] = [
-  { id: "US", label: "United States", dial: "1", nationalDigits: { min: 10, max: 10 } },
-  { id: "CA", label: "Canada", dial: "1", nationalDigits: { min: 10, max: 10 } },
-  { id: "JM", label: "Jamaica", dial: "1", nationalDigits: { min: 10, max: 10 } },
-  { id: "BS", label: "Bahamas", dial: "1", nationalDigits: { min: 10, max: 10 } },
-  { id: "BB", label: "Barbados", dial: "1", nationalDigits: { min: 10, max: 10 } },
-  { id: "GH", label: "Ghana", dial: "233", nationalDigits: { min: 9, max: 10 } },
-  { id: "NG", label: "Nigeria", dial: "234", nationalDigits: { min: 10, max: 11 } },
-  { id: "KE", label: "Kenya", dial: "254", nationalDigits: { min: 9, max: 10 } },
-  { id: "GB", label: "United Kingdom", dial: "44", nationalDigits: { min: 10, max: 11 } },
-  { id: "MX", label: "Mexico", dial: "52", nationalDigits: { min: 10, max: 10 } },
-  { id: "OTHER", label: "Other", dial: "", nationalDigits: { min: 8, max: 15 } },
-];
-
 export type PhoneParts = {
-  countryId: string;
+  dial: string;
   national: string;
 };
 
-const NANP_HINTS: Record<string, string> = {
-  "876": "JM",
-  "242": "BS",
-  "246": "BB",
-};
+/** Default US country calling code shown in the phone field. */
+export const DEFAULT_DIAL = "1";
+
+const US_NATIONAL_DIGITS = 10;
+const E164_MIN = 8;
+const E164_MAX = 15;
 
 export function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
 }
 
-export function phoneCountryById(id: string) {
-  return phoneCountries.find((country) => country.id === id) ?? phoneCountries[0];
-}
-
-export function formatInternationalPhone(countryId: string, national: string) {
-  const country = phoneCountryById(countryId);
+export function formatInternationalPhone(dial: string, national: string) {
+  const dialDigits = digitsOnly(dial) || DEFAULT_DIAL;
   const nationalDigits = digitsOnly(national);
-  if (country.id === "OTHER" || !country.dial) {
-    if (!nationalDigits) return "";
-    return `+${nationalDigits}`;
-  }
-  if (!nationalDigits) return `+${country.dial}`;
-  return `+${country.dial} ${nationalDigits}`;
-}
-
-function countriesByDialLength() {
-  return [...phoneCountries]
-    .filter((country) => country.dial)
-    .sort((left, right) => right.dial.length - left.dial.length);
+  if (!nationalDigits) return `+${dialDigits}`;
+  return `+${dialDigits} ${nationalDigits}`;
 }
 
 export function parseStoredPhone(value: string): PhoneParts {
   const trimmed = value.trim();
-  const digits = digitsOnly(trimmed);
-  if (!digits) return { countryId: "US", national: "" };
+  if (!trimmed) return { dial: DEFAULT_DIAL, national: "" };
 
-  const withDial = countriesByDialLength();
-
-  for (const country of withDial) {
-    if (digits !== country.dial) continue;
-    if (country.dial === "1") return { countryId: "US", national: "" };
-    return { countryId: country.id, national: "" };
-  }
-
-  if (digits.length === 10) {
-    return {
-      countryId: NANP_HINTS[digits.slice(0, 3)] ?? "US",
-      national: digits,
-    };
-  }
-
-  for (const country of withDial) {
-    if (!digits.startsWith(country.dial)) continue;
-    const national = digits.slice(country.dial.length);
-    if (
-      national.length < country.nationalDigits.min ||
-      national.length > country.nationalDigits.max
-    ) {
-      continue;
-    }
-    if (country.dial === "1") {
+  if (trimmed.startsWith("+")) {
+    const rest = trimmed.slice(1).trim();
+    const spaceMatch = rest.match(/^(\d+)\s+(.*)$/);
+    if (spaceMatch) {
       return {
-        countryId: NANP_HINTS[national.slice(0, 3)] ?? "US",
-        national,
+        dial: digitsOnly(spaceMatch[1]) || DEFAULT_DIAL,
+        national: digitsOnly(spaceMatch[2]),
       };
     }
-    return { countryId: country.id, national };
+
+    const digits = digitsOnly(rest);
+    if (!digits) return { dial: DEFAULT_DIAL, national: "" };
+    // Dial-only values such as "+1" or "+52".
+    if (digits.length <= 3) {
+      return { dial: digits, national: "" };
+    }
+    if (digits.startsWith(DEFAULT_DIAL) && digits.length === 1 + US_NATIONAL_DIGITS) {
+      return { dial: DEFAULT_DIAL, national: digits.slice(1) };
+    }
+    // Prefer a 1–3 digit calling code so compact international numbers still split.
+    for (const len of [1, 2, 3]) {
+      if (digits.length <= len) continue;
+      const dial = digits.slice(0, len);
+      const national = digits.slice(len);
+      const total = dial.length + national.length;
+      if (total < E164_MIN || total > E164_MAX) continue;
+      if (dial === DEFAULT_DIAL && national.length !== US_NATIONAL_DIGITS) continue;
+      return { dial, national };
+    }
+    return { dial: DEFAULT_DIAL, national: digits };
   }
 
-  return { countryId: "OTHER", national: digits };
+  const digits = digitsOnly(trimmed);
+  if (digits.length === US_NATIONAL_DIGITS) {
+    return { dial: DEFAULT_DIAL, national: digits };
+  }
+  if (digits.startsWith(DEFAULT_DIAL) && digits.length === 1 + US_NATIONAL_DIGITS) {
+    return { dial: DEFAULT_DIAL, national: digits.slice(1) };
+  }
+  return { dial: DEFAULT_DIAL, national: digits };
 }
 
-export function validatePhoneParts(countryId: string, national: string) {
-  const country = phoneCountryById(countryId);
+export function validatePhoneParts(dial: string, national: string) {
+  const dialDigits = digitsOnly(dial);
   const nationalDigits = digitsOnly(national);
+
+  if (!dialDigits) return "Enter a country code.";
   if (!nationalDigits) return "Enter a phone number.";
 
-  if (country.id === "OTHER" || !country.dial) {
-    if (nationalDigits.length < 8 || nationalDigits.length > 15) {
-      return "Enter a phone number with country code, 8–15 digits.";
+  if (dialDigits === DEFAULT_DIAL) {
+    if (nationalDigits.length !== US_NATIONAL_DIGITS) {
+      return `Enter a ${US_NATIONAL_DIGITS}-digit US number.`;
     }
     return "";
   }
 
-  const { min, max } = country.nationalDigits;
-  if (nationalDigits.length < min || nationalDigits.length > max) {
-    if (min === max) {
-      return `Enter a ${min}-digit number for ${country.label}.`;
-    }
-    return `Enter ${min}–${max} digits for ${country.label}.`;
+  const total = dialDigits.length + nationalDigits.length;
+  if (total < E164_MIN || total > E164_MAX) {
+    return `Enter a phone number with country code, ${E164_MIN}–${E164_MAX} digits.`;
   }
   return "";
 }
 
 export function validateStoredPhone(value: string) {
   const parts = parseStoredPhone(value);
-  return validatePhoneParts(parts.countryId, parts.national);
+  return validatePhoneParts(parts.dial, parts.national);
 }

@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  DEFAULT_DIAL,
   digitsOnly,
   formatInternationalPhone,
   parseStoredPhone,
-  phoneCountries,
-  phoneCountryById,
 } from "@/lib/phone";
 
 type PhoneFieldProps = {
@@ -19,16 +18,7 @@ type PhoneFieldProps = {
   autoComplete?: string;
 };
 
-function callingCodeLabel(id: string) {
-  const country = phoneCountryById(id);
-  if (!country.dial) return "Other";
-  const shared = phoneCountries.some(
-    (item) => item.id !== country.id && item.dial === country.dial,
-  );
-  if (!shared) return `+${country.dial}`;
-  if (country.id === "US") return "+1";
-  return `+${country.dial} ${country.label}`;
-}
+const US_MAX_DIGITS = 10;
 
 export function PhoneField({
   label = "Phone",
@@ -40,21 +30,20 @@ export function PhoneField({
   autoComplete = "tel-national",
 }: PhoneFieldProps) {
   const initial = parseStoredPhone(value);
-  const [countryId, setCountryId] = useState(initial.countryId);
-  const [national, setNational] = useState(digitsOnly(initial.national));
+  const [national, setNational] = useState(
+    digitsOnly(initial.national).slice(0, US_MAX_DIGITS),
+  );
 
   useEffect(() => {
-    if (value === formatInternationalPhone(countryId, national)) return;
+    if (value === formatInternationalPhone(DEFAULT_DIAL, national)) return;
     const parsed = parseStoredPhone(value);
-    const nextNational = digitsOnly(parsed.national);
-    if (parsed.countryId !== countryId) setCountryId(parsed.countryId);
+    const nextNational = digitsOnly(parsed.national).slice(0, US_MAX_DIGITS);
     if (nextNational !== national) setNational(nextNational);
-  }, [value, countryId, national]);
+  }, [value, national]);
 
-  const country = phoneCountryById(countryId);
-  const maxDigits = country.nationalDigits.max;
-  const tooLong = national.length > maxDigits;
-  const liveError = error || (tooLong ? `Use up to ${maxDigits} digits.` : "");
+  const tooLong = national.length > US_MAX_DIGITS;
+  const liveError = error || (tooLong ? `Use up to ${US_MAX_DIGITS} digits.` : "");
+  const fieldBorder = liveError ? "border-red-500" : "border-line";
 
   return (
     <label className="block text-sm">
@@ -62,41 +51,32 @@ export function PhoneField({
         {label}
         {required ? " *" : ""}
       </span>
-      <div className="flex gap-2">
-        <select
-          value={countryId}
-          aria-label="Country code"
-          onChange={(event) => {
-            const nextCountry = event.target.value;
-            setCountryId(nextCountry);
-            onChange(formatInternationalPhone(nextCountry, national));
-          }}
-          className={`w-40 shrink-0 rounded-xl border bg-surface px-3 py-3 text-sm outline-none ring-gold focus:ring-2 ${
-            liveError ? "border-red-500" : "border-line"
-          }`}
+      <div
+        className={`flex overflow-hidden rounded-xl border bg-surface focus-within:ring-2 focus-within:ring-gold ${fieldBorder}`}
+      >
+        <span
+          className="flex shrink-0 items-center border-r border-line px-3.5 py-3 text-sm font-medium tabular-nums tracking-wide text-muted"
+          title="United States"
+          aria-hidden
         >
-          {phoneCountries.map((item) => (
-            <option key={item.id} value={item.id}>
-              {callingCodeLabel(item.id)}
-            </option>
-          ))}
-        </select>
+          +{DEFAULT_DIAL}
+        </span>
+        <span className="sr-only">Country code +{DEFAULT_DIAL}, United States</span>
         <input
           type="tel"
-          inputMode="tel"
+          inputMode="numeric"
           value={national}
           onChange={(event) => {
-            const nextNational = digitsOnly(event.target.value);
+            const nextNational = digitsOnly(event.target.value).slice(0, US_MAX_DIGITS);
             setNational(nextNational);
-            onChange(formatInternationalPhone(countryId, nextNational));
+            onChange(formatInternationalPhone(DEFAULT_DIAL, nextNational));
           }}
-          placeholder={country.dial === "1" ? "4045550101" : "Phone number"}
+          placeholder="4045550101"
           autoComplete={autoComplete}
           required={required}
           aria-invalid={Boolean(liveError)}
-          className={`min-w-0 flex-1 rounded-xl border bg-surface px-4 py-3 outline-none ring-gold focus:ring-2 ${
-            liveError ? "border-red-500" : "border-line"
-          }`}
+          aria-label="Phone number"
+          className="min-w-0 flex-1 bg-transparent px-4 py-3 tabular-nums outline-none"
         />
       </div>
       {hint ? <span className="mt-1 block text-xs text-muted">{hint}</span> : null}
