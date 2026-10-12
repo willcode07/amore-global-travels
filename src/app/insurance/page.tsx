@@ -54,8 +54,27 @@ export default function InsurancePage() {
           ))}
         </div>
 
+        <div className="mt-16">
+          <h3 className="font-display text-2xl text-ink md:text-3xl">Get an Allianz quote</h3>
+          <p className="mt-2 max-w-2xl text-muted">
+            Start a trip protection quote below. Prefer to bundle coverage with
+            your full itinerary? Request a trip and we will include options on
+            the written proposal.
+          </p>
+          <div className="mt-8 flex justify-center overflow-x-auto">
+            <iframe
+              title="Allianz travel insurance quote"
+              src="https://www.agentmaxonline.com/agentmaxweb/storefront/index.html#/quotemax?widgetid=1294035&accam=F216814&code=ABIYU4TLWGBGTNHC6ZWLRSKAR65GB6C5JLBJOIXR7QY3M6I5HDDPSI6DAIFBVESZNGXHPHUCUXWJV6QHONWQ3EV2VR5GX76KDWWMRCYHFSK5TVAGBKJTGQPD72R24IZY"
+              width={600}
+              height={390}
+              frameBorder={0}
+              className="max-w-full shrink-0 border-0 bg-surface"
+            />
+          </div>
+        </div>
+
         <div className="mt-16 rounded-3xl bg-cream p-8 md:p-10">
-          <h3 className="font-display text-2xl text-ink">Add protection to a quote</h3>
+          <h3 className="font-display text-2xl text-ink">Add protection to a trip quote</h3>
           <p className="mt-2 max-w-xl text-muted">
             Request a trip and mention coverage, or we will include it as an
             optional section on your proposal.
