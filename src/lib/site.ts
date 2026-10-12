@@ -32,7 +32,7 @@ export const services = [
     href: "/insurance",
     title: "Travel Insurance",
     description:
-      "Allianz trip protection we can include on your quote so the unexpected does not become unpaid.",
+      "Get an Allianz quote online and buy trip protection in minutes — or ask us to include it with your vacation proposal.",
     image: assetPath("/images/about.jpeg"),
   },
   {

@@ -57,7 +57,8 @@ export default function ServicesPage() {
           <h3 className="font-display text-2xl text-ink">Ready for a quote?</h3>
           <p className="mt-2 max-w-xl text-muted">
             Share a destination and who is traveling. We follow up in your
-            dashboard with options — including Allianz protection and an Aura frame.
+            dashboard with options — and you can also get an Allianz insurance
+            quote anytime on Travel Insurance.
           </p>
           <StartTravelButton className="mt-6 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-on-gold">
             Request a Quote
